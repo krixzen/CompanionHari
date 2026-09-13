@@ -113,6 +113,7 @@ export function TopicForm({ open, onClose, onSave, topic, subjectName }) {
           </span>
           <SubTopicEditor
             value={draft.sub_topics}
+            numberPrefix={topic ? `${topic.tracking_number}/` : undefined}
             onChange={(sub_topics) => setDraft((current) => ({ ...current, sub_topics }))}
           />
         </div>

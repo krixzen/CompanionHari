@@ -428,7 +428,12 @@ function TopicRow({
               {topic.sub_topics.map((subTopic, index) => (
                 // Sub-topics are free text and can repeat, so index is the key.
                 // eslint-disable-next-line react/no-array-index-key
-                <li key={index}>{subTopic}</li>
+                <li key={index} className="flex gap-2">
+                  <span className="shrink-0 font-mono text-xs text-ink-faint">
+                    {topic.tracking_number}/{String(index + 1).padStart(2, '0')}
+                  </span>
+                  <span>{subTopic}</span>
+                </li>
               ))}
             </ul>
           )}

@@ -1,8 +1,17 @@
 import { useState } from 'react';
 import { Button, TextInput } from './ui.jsx';
 
-/** Edits the list of sub-topics under a topic: add, rename, remove. */
-export function SubTopicEditor({ value = [], onChange }) {
+/**
+ * Edits the list of sub-topics under a topic: add, rename, remove.
+ *
+ * `numberPrefix` (e.g. "PHY-001/") labels each existing row with its number —
+ * PHY-001/01, PHY-001/02 — matching the topic's own tracking number. It is
+ * positional: the label always reflects where a sub-topic currently sits in
+ * the list, the same way the list itself is ordered. A topic with no
+ * tracking number yet (a syllabus-import draft that has not been saved)
+ * passes no prefix, and rows show a plain bullet instead.
+ */
+export function SubTopicEditor({ value = [], onChange, numberPrefix }) {
   const [draft, setDraft] = useState('');
 
   const add = () => {
@@ -27,8 +36,8 @@ export function SubTopicEditor({ value = [], onChange }) {
         // stable key here.
         // eslint-disable-next-line react/no-array-index-key
         <div key={index} className="flex items-center gap-2">
-          <span aria-hidden="true" className="text-ink-faint">
-            ·
+          <span aria-hidden="true" className="w-16 shrink-0 text-right font-mono text-xs text-ink-faint">
+            {numberPrefix ? `${numberPrefix}${String(index + 1).padStart(2, '0')}` : '·'}
           </span>
           <TextInput
             value={subTopic}
