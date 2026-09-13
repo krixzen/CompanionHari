@@ -43,13 +43,15 @@ export function usePlanner(mondayIso) {
     load();
   }, [load]);
 
-  /** Reloads the blocks and the waiting list without flashing a spinner. */
+  /** Reloads the blocks, commitments and the waiting list without flashing a spinner. */
   const refresh = useCallback(async () => {
-    const [loadedEntries, loadedUnscheduled] = await Promise.all([
+    const [loadedEntries, loadedAnchors, loadedUnscheduled] = await Promise.all([
       api.plan.list(mondayIso, addDays(mondayIso, 6)),
+      api.anchors.effective(mondayIso, addDays(mondayIso, 6)),
       api.plan.unscheduled(),
     ]);
     setEntries(loadedEntries);
+    setAnchors(loadedAnchors);
     setUnscheduled(loadedUnscheduled);
   }, [mondayIso]);
 
