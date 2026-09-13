@@ -415,15 +415,22 @@ rather than meeting the material fresh. The review list lets you change any
 block between Study and Practice before saving, or leave either out
 entirely.
 
-### Lunch and dinner, planned rather than fixed
-Lunch and dinner aren't part of the default week pattern — instead, every
-time the assistant plans a stretch, it also proposes a lunch and a dinner
-time for each day in it, fitted around everything else rather than pinned
-to the same slot regardless of what the day actually looks like. These come
-back in a separate review list underneath the study blocks; save the ones
-you want and each becomes a one-off commitment for that single day only, so
-a Tuesday lunch never leaks into any other Tuesday. Re-planning a stretch
-proposes fresh times for it again.
+### Lunch, dinner, family time and leisure — planned rather than fixed
+Lunch, dinner, family time and leisure aren't part of the default week
+pattern — instead, every time the assistant plans a stretch, it also
+proposes them: a lunch and a dinner for each day, fitted around everything
+else rather than pinned to the same slot regardless of what the day
+actually looks like, plus a mix of family time and pure leisure (free time,
+phone, TV — a student who only ever studies burns out) wherever it judges a
+gap is worth protecting. Family time and leisure don't need to show up
+every day the way meals do; a solid stretch on a couple of days beats a
+token five minutes on all of them.
+
+These come back in their own review lists underneath the study blocks —
+meals in one, family/leisure in another — same tick-and-adjust shape as
+everywhere else. Save the ones you want and each becomes a one-off
+commitment for that single day only, so a Tuesday lunch never leaks into
+any other Tuesday. Re-planning a stretch proposes fresh ones for it again.
 
 ### Revision, booked automatically
 Every study block gets three short revision blocks after it — the next day,
