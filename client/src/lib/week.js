@@ -101,3 +101,20 @@ export function relativeDay(isoDate, from = todayIso()) {
   if (diff < -1 && diff > -7) return `${Math.abs(diff)} days ago`;
   return null;
 }
+
+
+/**
+ * "Which week is this" relative to a term's start date, for scoping a fixed
+ * commitment to specific weeks (an exam, a run of extra classes) instead of
+ * having it repeat forever. Mirrors server/src/lib/time.js so the two halves
+ * of the app count weeks the same way.
+ */
+export function weekBounds(termStart, weekNumber) {
+  const from = addDays(termStart, (weekNumber - 1) * 7);
+  return { from, until: addDays(from, 6) };
+}
+
+export function weekNumberForDate(termStart, date) {
+  const days = Math.round((new Date(`${date}T00:00:00`) - new Date(`${termStart}T00:00:00`)) / 86400000);
+  return Math.floor(days / 7) + 1;
+}

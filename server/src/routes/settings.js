@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import { asyncRoute } from '../lib/httpError.js';
-import { getPlannerSettings, savePlannerSettings } from '../services/settingsService.js';
+import {
+  getPlannerSettings,
+  getTermSettings,
+  savePlannerSettings,
+  saveTermSettings,
+} from '../services/settingsService.js';
 
 export const settingsRouter = Router();
 
@@ -12,5 +17,16 @@ settingsRouter.patch(
   '/planner',
   asyncRoute((req, res) => {
     res.json({ settings: savePlannerSettings(req.body) });
+  })
+);
+
+settingsRouter.get('/term', (req, res) => {
+  res.json({ settings: getTermSettings() });
+});
+
+settingsRouter.patch(
+  '/term',
+  asyncRoute((req, res) => {
+    res.json({ settings: saveTermSettings(req.body) });
   })
 );

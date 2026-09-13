@@ -265,6 +265,36 @@ commitment as time it may not touch.
 Anything running past midnight goes in as two commitments — one up to 23:59
 and one from 00:00 — so a block always has an end time later than its start.
 
+### One-off changes — an exam, a run of extra classes
+Most commitments repeat every week, but term life doesn't always: an exam
+week, a burst of extra coaching, a sports camp. Any commitment can be scoped
+to specific weeks instead of forever:
+
+1. When adding or editing a commitment, under **Applies to** choose **Just
+   some weeks** instead of **Every week**.
+2. Pick which week (or weeks) it covers from a grid numbered 1 to 52. Hover a
+   number to see its actual dates.
+3. Save — that commitment only counts on those weeks. Every other week is
+   untouched.
+
+Weeks are numbered from a **term start date**, shown at the top of the
+commitments page as "Counting weeks from ⟨date⟩ as Week 1." It defaults to
+the Monday of the current week so the feature works immediately; click
+**change this** once to set it to when your actual term began, and every
+week number lines up with it from then on.
+
+Adding a new commitment across several days *and* several weeks at once
+creates one row per combination — a Tuesday-and-Thursday extra class across
+weeks 20 and 21 becomes four rows. Editing an existing one just moves that
+one row to a different single week.
+
+**Exam** is also now its own kind of commitment, alongside School, Coaching,
+Sport, Meal, Family, Sleep and Other, so it gets its own colour on the
+calendar. The commitment's *name* has always been free text, though — you
+don't need a special category to call something "Tuition Coaching,"
+"Football," or "Movie Time"; just type that as the name and pick whichever
+kind fits closest.
+
 ### The week calendar
 **Week** shows seven columns with the hours down the side. Commitments sit
 behind everything as soft washes; study blocks are cards in their subject's
@@ -313,8 +343,12 @@ Phase 2 adds one column and one table:
 
 - `plan_entry.parent_entry_id` — ties a revision block to the study block that
   created it, so moving or deleting one carries the other along.
-- `setting` — a small key/value store, used for the planner's preferences.
-  Later phases can add their own keys without another migration.
+- `setting` — a small key/value store, used for the planner's preferences and,
+  since the one-off changes feature above, the term start date under the key
+  `term`.
+- `anchor.effective_from` / `anchor.effective_until` — scope a commitment to
+  a run of dates instead of forever, added when weekly overrides were built.
+- `exam` joined the list of recognised commitment kinds.
 
 ---
 

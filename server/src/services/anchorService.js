@@ -1,8 +1,8 @@
 import { getDb } from '../db/index.js';
 import { badRequest, notFound } from '../lib/httpError.js';
-import { toMinutes } from '../lib/time.js';
+import { isIsoDate, toMinutes } from '../lib/time.js';
 
-export const ANCHOR_TYPES = ['school', 'coaching', 'sport', 'meal', 'family', 'sleep', 'other'];
+export const ANCHOR_TYPES = ['school', 'coaching', 'sport', 'meal', 'family', 'sleep', 'exam', 'other'];
 
 export const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -37,8 +37,22 @@ function getAnchor(studentId, anchorId) {
   return { ...anchor, is_active: Boolean(anchor.is_active) };
 }
 
-/** Checks the shape of a commitment and normalises its times. */
-function validate({ label, type, day_of_week: day, start_time: start, end_time: end }) {
+/**
+ * Checks the shape of a commitment and normalises its times.
+ *
+ * effective_from/effective_until scope a commitment to a run of dates —
+ * an exam week, a stretch of extra classes — instead of it repeating
+ * forever. Both null (the default) means "every week, always".
+ */
+function validate({
+  label,
+  type,
+  day_of_week: day,
+  start_time: start,
+  end_time: end,
+  effective_from: effectiveFrom,
+  effective_until: effectiveUntil,
+}) {
   if (!label || !String(label).trim()) throw badRequest('Give the commitment a name.');
   if (!ANCHOR_TYPES.includes(type)) {
     throw badRequest(`"type" must be one of: ${ANCHOR_TYPES.join(', ')}.`);
@@ -57,12 +71,22 @@ function validate({ label, type, day_of_week: day, start_time: start, end_time: 
     );
   }
 
+  const from = effectiveFrom ?? null;
+  const until = effectiveUntil ?? null;
+  if (from !== null && !isIsoDate(from)) throw badRequest('The start date should look like 2026-09-14.');
+  if (until !== null && !isIsoDate(until)) throw badRequest('The end date should look like 2026-09-20.');
+  if (from !== null && until !== null && until < from) {
+    throw badRequest('That range ends before it starts.');
+  }
+
   return {
     label: String(label).trim().slice(0, 120),
     type,
     day_of_week: day,
     start_time: start,
     end_time: end,
+    effective_from: from,
+    effective_until: until,
   };
 }
 
@@ -70,10 +94,20 @@ export function createAnchor(studentId, input) {
   const anchor = validate(input);
   const info = getDb()
     .prepare(
-      `INSERT INTO anchor (student_id, label, type, day_of_week, start_time, end_time, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, 1)`
+      `INSERT INTO anchor
+         (student_id, label, type, day_of_week, start_time, end_time, is_active, effective_from, effective_until)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
     )
-    .run(studentId, anchor.label, anchor.type, anchor.day_of_week, anchor.start_time, anchor.end_time);
+    .run(
+      studentId,
+      anchor.label,
+      anchor.type,
+      anchor.day_of_week,
+      anchor.start_time,
+      anchor.end_time,
+      anchor.effective_from,
+      anchor.effective_until
+    );
 
   return getAnchor(studentId, info.lastInsertRowid);
 }
@@ -87,7 +121,9 @@ export function updateAnchor(studentId, anchorId, changes) {
 
   getDb()
     .prepare(
-      `UPDATE anchor SET label = ?, type = ?, day_of_week = ?, start_time = ?, end_time = ?, is_active = ?
+      `UPDATE anchor
+         SET label = ?, type = ?, day_of_week = ?, start_time = ?, end_time = ?, is_active = ?,
+             effective_from = ?, effective_until = ?
        WHERE id = ? AND student_id = ?`
     )
     .run(
@@ -97,6 +133,8 @@ export function updateAnchor(studentId, anchorId, changes) {
       merged.start_time,
       merged.end_time,
       isActive ? 1 : 0,
+      merged.effective_from,
+      merged.effective_until,
       anchorId,
       studentId
     );

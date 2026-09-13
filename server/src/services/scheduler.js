@@ -35,12 +35,19 @@ export function buildBusyMap(dates, anchors, entries, { entryPadding = 0 } = {})
     const end = toMinutes(anchor.end_time);
     if (start === null || end === null || end <= start) continue;
     if (!byDay.has(anchor.day_of_week)) byDay.set(anchor.day_of_week, []);
-    byDay.get(anchor.day_of_week).push({ start, end });
+    byDay.get(anchor.day_of_week).push({ start, end, from: anchor.effective_from, until: anchor.effective_until });
   }
+
+  // A commitment scoped to specific weeks (an exam, a run of extra classes)
+  // only counts on dates inside its own range — everything else applies as
+  // it always has, on every matching weekday.
+  const inRange = (date, range) =>
+    (!range.from || date >= range.from) && (!range.until || date <= range.until);
 
   const busy = new Map();
   for (const date of dates) {
-    busy.set(date, [...(byDay.get(dayOfWeek(date)) ?? [])]);
+    const todaysAnchors = (byDay.get(dayOfWeek(date)) ?? []).filter((range) => inRange(date, range));
+    busy.set(date, todaysAnchors.map(({ start, end }) => ({ start, end })));
   }
 
   for (const entry of entries) {
