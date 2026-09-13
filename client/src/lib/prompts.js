@@ -216,7 +216,13 @@ ${busyLines || '(nothing fixed recorded yet)'}
 Topics waiting for a place on the calendar, with their sub-topics listed underneath where there are any:
 ${topicLines || '(nothing waiting — every topic already has a slot)'}
 
-Schedule sub-topic by sub-topic wherever a topic has them listed, rather than booking the whole topic as one sitting — split its total minutes across its sub-topics however makes sense (a harder one can take longer than an easier one), and give each its own block using its own number, e.g. "PHY-001/01", "PHY-001/02". Only use the plain topic number, with no "/NN", for a topic that has no sub-topics listed. Build a realistic, humane timetable — not everything needs to fit in this one stretch, and a lighter day here and there is fine. Do not invent a number that is not listed above.
+Schedule sub-topic by sub-topic wherever a topic has them listed, rather than booking the whole topic as one sitting — split its total minutes across its sub-topics however makes sense (a harder one can take longer than an easier one), and give each its own block using its own number, e.g. "PHY-001/01", "PHY-001/02". Only use the plain topic number, with no "/NN", for a topic that has no sub-topics listed. Do not invent a number that is not listed above.
+
+Make it realistic and thoughtful, not a cram session:
+- Interleave subjects rather than blocking one subject for hours straight. Mixing subjects within a day helps retention far more than marathon single-subject blocks — after at most one or two sittings of the same subject, move to a different one before coming back to it.
+- The same goes within one topic: don't chain every one of its sub-topics back-to-back in a single stretch. Spread them across different days where you can, so the same material comes back after a gap rather than all at once.
+- Spread sittings across the whole date range instead of front-loading a single day — not everything needs to fit in this one stretch, and a lighter day here and there is fine.
+- Schedule only the first sitting for each sub-topic. This app books that sitting's own revision follow-ups (a day later, three days later, a week later) automatically the moment it is saved — you do not need to add revision blocks yourself, and doing so would only double them up.
 
 Reply with JSON only. No explanation before or after it, and no markdown code fence.
 

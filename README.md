@@ -338,7 +338,12 @@ today.
 job to a conversation instead of the built-in algorithm. It writes a prompt
 containing everything the app knows — your fixed commitments, anything
 already on the calendar, and every topic waiting for a slot — and asks for a
-day-by-day timetable back.
+day-by-day timetable back. The prompt itself asks for a realistic mix rather
+than a cram session: subjects interleaved instead of blocked for hours at a
+stretch, a topic's own sub-topics spread across days instead of chained
+one after another, and only the first sitting for each sub-topic — this app
+books its revision follow-ups automatically once it's saved, so the
+assistant is asked not to add those itself.
 
 Paste the reply in and it goes to a review list: each proposed block shows
 the topic it matched to, with its date, time and length all editable, and a
