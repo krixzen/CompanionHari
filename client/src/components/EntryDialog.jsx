@@ -94,6 +94,13 @@ export function EntryDialog({ entry, open, onClose, onSave, onDelete, onRequestL
           </p>
         )}
 
+        {entry.entry_type === 'practice' && (
+          <p className="rounded-xl2 bg-paper-sunk px-3 py-2 text-sm text-ink-soft">
+            A practice block — working problems on material already studied, rather than meeting it
+            for the first time.
+          </p>
+        )}
+
         <label className="flex items-center gap-3 rounded-xl2 bg-paper-sunk px-3 py-2.5">
           <input
             type="checkbox"

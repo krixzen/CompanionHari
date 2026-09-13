@@ -72,6 +72,7 @@ function EntryBlock({ entry, window, onOpen, compact }) {
   const top = (start - window.start) * PX_PER_MINUTE;
   const height = Math.max(entry.scheduled_duration_minutes * PX_PER_MINUTE, 18);
   const isRevision = entry.entry_type === 'revision';
+  const isPractice = entry.entry_type === 'practice';
 
   const style = {
     top,
@@ -101,7 +102,9 @@ function EntryBlock({ entry, window, onOpen, compact }) {
       }`}
       className={`absolute inset-x-0.5 cursor-grab touch-none overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-left shadow-sm transition active:cursor-grabbing ${
         isRevision ? 'border-dashed bg-paper-raised/90' : ''
-      } ${entry.completed ? 'opacity-55' : ''} ${isDragging ? 'shadow-soft ring-2 ring-sage-300' : ''}`}
+      } ${isPractice ? 'border-dotted' : ''} ${entry.completed ? 'opacity-55' : ''} ${
+        isDragging ? 'shadow-soft ring-2 ring-sage-300' : ''
+      }`}
     >
       <p
         className={`truncate text-[10px] font-semibold leading-tight ${
@@ -114,16 +117,17 @@ function EntryBlock({ entry, window, onOpen, compact }) {
             ↻{' '}
           </span>
         )}
-        {entry.tracking_label ?? entry.tracking_number}
+        {isPractice && (
+          <span aria-hidden="true" title="Practice">
+            ✎{' '}
+          </span>
+        )}
+        {entry.subject_name}
       </p>
       {height > 30 && (
-        <p className="truncate text-[11px] leading-tight text-ink">
-          {entry.sub_topic_title ?? entry.topic_title}
-        </p>
-      )}
-      {height > 46 && !compact && (
         <p className="truncate text-[10px] leading-tight text-ink-faint">
-          {friendlyTime(entry.scheduled_start_time)}–{friendlyTime(entry.scheduled_end_time)}
+          {friendlyTime(entry.scheduled_start_time)}
+          {!compact && height > 40 ? `–${friendlyTime(entry.scheduled_end_time)}` : ''}
         </p>
       )}
     </div>

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client.js';
 import { ConfirmDialog } from './ConfirmDialog.jsx';
-import { Button, Card } from './ui.jsx';
+import { Button, Card, TextInput } from './ui.jsx';
 import { STATUS_LABELS, formatMinutes } from '../lib/format.js';
-import { longDate } from '../lib/week.js';
+import { longDate, todayIso } from '../lib/week.js';
 
 const CONFIDENCE_WORDS = {
   1: 'Lost',
@@ -26,12 +26,15 @@ export function SessionHistory({ onChanged }) {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [deleting, setDeleting] = useState(null);
+  const [filterDate, setFilterDate] = useState(''); // '' means every day
 
   const load = useCallback(async () => {
-    const result = await api.sessions.list({ limit: PAGE, offset });
+    const result = await api.sessions.list(
+      filterDate ? { from: filterDate, to: filterDate, limit: PAGE, offset } : { limit: PAGE, offset }
+    );
     setSessions(result.sessions);
     setTotal(result.total);
-  }, [offset]);
+  }, [offset, filterDate]);
 
   useEffect(() => {
     load();
@@ -44,20 +47,55 @@ export function SessionHistory({ onChanged }) {
     onChanged?.();
   };
 
-  if (total === 0) return null;
+  // Recording is always day by day — a real filter is worth showing even
+  // when nothing was recorded on that particular day.
+  if (!filterDate && total === 0) return null;
 
   return (
     <Card className="overflow-hidden">
       <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 py-4">
-        <h2 className="text-sm font-semibold text-ink">Everything you have recorded</h2>
-        <p className="text-xs text-ink-faint">
-          {total} session{total === 1 ? '' : 's'}
-        </p>
+        <h2 className="text-sm font-semibold text-ink">
+          {filterDate ? `What happened on ${longDate(filterDate)}` : 'Everything you have recorded'}
+        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <TextInput
+            type="date"
+            value={filterDate}
+            max={todayIso()}
+            onChange={(event) => {
+              setFilterDate(event.target.value);
+              setOffset(0);
+            }}
+            className="w-auto"
+            aria-label="View a single day"
+          />
+          {filterDate && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setFilterDate('');
+                setOffset(0);
+              }}
+            >
+              Every day
+            </Button>
+          )}
+          <p className="text-xs text-ink-faint">
+            {total} session{total === 1 ? '' : 's'}
+          </p>
+        </div>
       </div>
+
+      {filterDate && total === 0 && (
+        <p className="border-t border-black/5 px-5 py-6 text-center text-sm text-ink-faint">
+          Nothing recorded on this day.
+        </p>
+      )}
 
       {/* On a phone the table's useful columns scroll out of sight, so the same
           rows are stacked instead. */}
-      <ul className="divide-y divide-black/5 border-t border-black/5 sm:hidden">
+      <ul className={`divide-y divide-black/5 border-t border-black/5 sm:hidden ${sessions.length === 0 ? 'hidden' : ''}`}>
         {sessions.map((session) => (
           <li key={session.id} className="px-5 py-3">
             <div className="flex items-baseline justify-between gap-2">
@@ -93,7 +131,7 @@ export function SessionHistory({ onChanged }) {
         ))}
       </ul>
 
-      <div className="hidden overflow-x-auto sm:block">
+      <div className={`overflow-x-auto ${sessions.length === 0 ? 'hidden' : 'hidden sm:block'}`}>
         <table className="w-full min-w-[34rem] border-t border-black/5 text-sm">
           <caption className="sr-only">Study sessions, newest first</caption>
           <thead>
