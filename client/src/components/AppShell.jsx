@@ -27,6 +27,9 @@ export function AppShell({ children }) {
             <NavLink to="/subjects" className={linkClasses}>
               Subjects
             </NavLink>
+            <NavLink to="/tests" className={linkClasses}>
+              Tests
+            </NavLink>
             <NavLink to="/progress" className={linkClasses}>
               Progress
             </NavLink>

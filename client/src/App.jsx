@@ -7,6 +7,8 @@ import HomePage from './pages/HomePage.jsx';
 import PlannerPage from './pages/PlannerPage.jsx';
 import ProgressPage from './pages/ProgressPage.jsx';
 import SubjectsPage from './pages/SubjectsPage.jsx';
+import TestDetailPage from './pages/TestDetailPage.jsx';
+import TestsPage from './pages/TestsPage.jsx';
 import TopicsPage from './pages/TopicsPage.jsx';
 import ImportPage from './pages/ImportPage.jsx';
 
@@ -23,6 +25,8 @@ export default function App() {
             <Route path="/subjects" element={<SubjectsPage />} />
             <Route path="/subjects/:subjectId" element={<TopicsPage />} />
             <Route path="/subjects/:subjectId/import" element={<ImportPage />} />
+            <Route path="/tests" element={<TestsPage />} />
+            <Route path="/tests/:testId" element={<TestDetailPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AppShell>

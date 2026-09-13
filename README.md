@@ -96,7 +96,7 @@ study-planner/
 ├── client/                  the part you see in the browser
 │   └── src/
 │       ├── pages/           one file per screen (home, week, commitments,
-│       │                    subjects, topics, syllabus import)
+│       │                    subjects, topics, syllabus import, tests, progress)
 │       ├── components/      reusable pieces — the week grid, the charts
 │       │                    and the LLM Bridge live here
 │       ├── hooks/           shared behaviour (loaded data, notes, toasts)
@@ -108,7 +108,8 @@ study-planner/
     └── src/
         ├── routes/          the web addresses the app responds to
         ├── services/        the thinking: syllabus reading, tracking numbers,
-        │                    the week planner, and the progress figures
+        │                    the week planner, the progress figures, and
+        │                    test analysis
         ├── lib/             small shared helpers (dates, times, validation)
         └── db/              database connection, seed data, schema history
             └── migrations/  numbered .sql files that build the schema
@@ -117,6 +118,70 @@ study-planner/
 ---
 
 ## What this phase does
+
+**Phase 4 — Test analysis and AI insights.**
+
+### Tests
+A new **Tests** screen (`/tests`) is for logging what actually happened in an
+exam: the name, date, source, and score. That much takes ten seconds. If you
+have the time, the test's own page lets you break it down question by
+question — which subject and topic each question belonged to, whether it was
+attempted, whether it was right, the marks, and how long it took. Nothing
+here needs an AI: the accuracy figures, the per-subject breakdown, and the
+average time per question are worked out immediately on the page, from
+whatever you've entered.
+
+### What this test says
+This is the second real use of the LLM Bridge from Phase 1, alongside syllabus
+import. Once a test has a score or a few questions logged, **Analyse this
+test** writes a prompt containing the whole breakdown and asks Claude or
+ChatGPT to find the pattern in it — not just a list of what was wrong, but
+whether the mistakes look like careless slips or real gaps, whether timing
+suggests you were rushed, and two or three specific, doable things to do
+about it. You paste the reply back, check it over, and it's saved against
+that test. Every saved analysis stays on the test's page, oldest at the
+bottom.
+
+### This week's plan
+On **Progress**, a card called *This week's plan* builds a prompt out of your
+recent test analyses, your current topic list, and how the week has gone so
+far, and asks for a short, specific list of priorities — not a generic study
+schedule. Paste the reply back and it's saved. Each priority that names a
+real topic gets an **Add to plan** button: press it and the app finds the
+next free gap for it and shows you exactly where — the day, the time, how
+long — before anything is booked. You still decide.
+
+This is the same "suggest, you decide" shape Phase 3 used for a shaky topic's
+extra revision, used again here because it held up well: the app can look for
+room in your week, but it never fills it in without asking.
+
+### Study notes for a topic
+Open any topic to edit it and there's a **Generate study notes** button. It
+asks Claude or ChatGPT for a compact, exam-night summary of the topic's key
+concepts, plus a short list of things worth looking up. Resources come back
+as things to search for — "Khan Academy: Newton's Laws" — rather than links,
+because an assistant has no way of knowing which URLs still work. Saved notes
+sit on the topic's edit screen and can be regenerated any time.
+
+### A bug this phase's testing caught
+Building the study-notes feature meant opening one modal (the LLM Bridge)
+from inside another (the topic's edit form) for the first time anywhere in
+the app. It turned out `Modal` closed on Escape by listening globally, so
+with two open at once, one press of Escape closed *both* — the bridge you
+meant to dismiss, and the form underneath it, discarding whatever you were
+editing. Fixed by having each modal register itself on a small stack and only
+the top one respond to Escape. Worth knowing about because it's the kind of
+bug that only shows up once two dialogs are ever nested, which nothing before
+Phase 4 did.
+
+### What Phase 4 adds to the data model
+Nothing new — `test`, `test_result` and `analysis` were already built out in
+full back in Phase 1, exactly so this phase could fill them in rather than
+migrate around them. The one small addition is on `topic`: `resources` (a
+JSON list of `{title, type, note}`) now has a validated write path through
+the API, alongside `key_concepts`, which already existed.
+
+---
 
 **Phase 3 — Study sessions and progress tracking.**
 

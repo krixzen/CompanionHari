@@ -84,6 +84,8 @@ export const api = {
     update: (id, changes) => request(`/plan/${id}`, { method: 'PATCH', body: changes }),
     remove: (id) => request(`/plan/${id}`, { method: 'DELETE' }),
     auto: (from, to) => request('/plan/auto', { method: 'POST', body: { from, to } }),
+    suggest: (topicId, opts = {}) =>
+      request('/plan/suggest', { method: 'POST', body: { topic_id: topicId, ...opts } }).then((r) => r.suggestion),
     clear: (from, to, includeCompleted = false) =>
       request('/plan/clear', { method: 'POST', body: { from, to, includeCompleted } }),
   },
@@ -95,6 +97,27 @@ export const api = {
     create: (session) => request('/sessions', { method: 'POST', body: session }),
     update: (id, changes) => request(`/sessions/${id}`, { method: 'PATCH', body: changes }),
     remove: (id) => request(`/sessions/${id}`, { method: 'DELETE' }),
+  },
+
+  tests: {
+    list: (params) => request(`/tests${query(params)}`).then((r) => r.tests),
+    get: (id) => request(`/tests/${id}`).then((r) => r.test),
+    create: (test) => request('/tests', { method: 'POST', body: test }).then((r) => r.test),
+    update: (id, changes) => request(`/tests/${id}`, { method: 'PATCH', body: changes }).then((r) => r.test),
+    remove: (id) => request(`/tests/${id}`, { method: 'DELETE' }),
+    setResults: (id, results) =>
+      request(`/tests/${id}/results`, { method: 'PUT', body: { results } }).then((r) => r.test),
+    updateResult: (id, resultId, changes) =>
+      request(`/tests/${id}/results/${resultId}`, { method: 'PATCH', body: changes }).then((r) => r.test),
+    removeResult: (id, resultId) =>
+      request(`/tests/${id}/results/${resultId}`, { method: 'DELETE' }).then((r) => r.test),
+  },
+
+  analysis: {
+    list: (params) => request(`/analysis${query(params)}`).then((r) => r.analyses),
+    get: (id) => request(`/analysis/${id}`).then((r) => r.analysis),
+    create: (analysis) => request('/analysis', { method: 'POST', body: analysis }).then((r) => r.analysis),
+    remove: (id) => request(`/analysis/${id}`, { method: 'DELETE' }),
   },
 
   progress: {

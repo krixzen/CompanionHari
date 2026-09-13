@@ -15,6 +15,7 @@ import {
   optionalDate,
   optionalEnum,
   optionalInteger,
+  optionalResourceList,
   optionalString,
   optionalStringArray,
   requireString,
@@ -52,6 +53,7 @@ function readTopicFields(body, { requireTitle = false } = {}) {
     status: optionalEnum(body, 'status', TOPIC_STATUSES),
     target_date: optionalDate(body, 'target_date'),
     notes: optionalString(body, 'notes', { max: 20000 }),
+    resources: optionalResourceList(body, 'resources'),
   };
 
   // Drop anything the caller did not mention so a PATCH stays a partial update.

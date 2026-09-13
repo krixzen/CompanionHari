@@ -8,6 +8,7 @@ import { StatusBar } from '../components/charts/StatusBar.jsx';
 import { SubjectMinutesChart } from '../components/charts/SubjectMinutesChart.jsx';
 import { ChartFrame } from '../components/charts/chartBits.jsx';
 import { SessionHistory } from '../components/SessionHistory.jsx';
+import { WeeklyActionPlanCard } from '../components/WeeklyActionPlanCard.jsx';
 import { Button, Card, EmptyState, ErrorNote, Spinner } from '../components/ui.jsx';
 import { formatMinutes } from '../lib/format.js';
 
@@ -85,6 +86,8 @@ export default function ProgressPage() {
       ) : (
         <div className="space-y-4">
           <StatRow summary={summary} />
+
+          <WeeklyActionPlanCard progressSummary={summary} />
 
           <ChartFrame
             title="Minutes studied each day"

@@ -8,6 +8,7 @@ import {
   deletePlanEntry,
   listPlanEntries,
   listUnscheduledTopics,
+  suggestStudySlot,
   updatePlanEntry,
 } from '../services/planService.js';
 import { startOfWeek, addDays, todayIso } from '../lib/time.js';
@@ -45,6 +46,20 @@ planRouter.post(
   '/',
   asyncRoute((req, res) => {
     res.status(201).json(createPlanEntry(studentId(), req.body));
+  })
+);
+
+planRouter.post(
+  '/suggest',
+  asyncRoute((req, res) => {
+    const topicId = asId(req.body.topic_id);
+    res.json({
+      suggestion: suggestStudySlot(studentId(), topicId, {
+        minutes: req.body.minutes,
+        from: req.body.from,
+        days: req.body.days,
+      }),
+    });
   })
 );
 

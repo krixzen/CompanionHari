@@ -84,3 +84,31 @@ export function optionalColour(body, field) {
   }
   return raw.trim().toLowerCase();
 }
+
+/**
+ * A short, freeform list of study resources: { title, type?, note? }.
+ * URLs are deliberately not required or validated — these often come back
+ * from an LLM as "search for X" rather than a real link, and a broken link
+ * check would just be false confidence.
+ */
+export function optionalResourceList(body, field, { maxItems = 30 } = {}) {
+  const raw = body[field];
+  if (raw === undefined) return undefined;
+  if (raw === null) return [];
+  if (!Array.isArray(raw)) throw badRequest(`"${field}" must be a list.`);
+  if (raw.length > maxItems) throw badRequest(`"${field}" can hold at most ${maxItems} items.`);
+
+  return raw.map((item, index) => {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      throw badRequest(`Item ${index + 1} in "${field}" must be an object.`);
+    }
+    const title = String(item.title ?? '').trim();
+    if (!title) throw badRequest(`Item ${index + 1} in "${field}" needs a title.`);
+    return {
+      title: title.slice(0, 200),
+      type: item.type ? String(item.type).trim().slice(0, 40) : null,
+      note: item.note ? String(item.note).trim().slice(0, 500) : null,
+      url: item.url ? String(item.url).trim().slice(0, 500) : null,
+    };
+  });
+}

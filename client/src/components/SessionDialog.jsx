@@ -162,7 +162,14 @@ export function SessionDialog({
 }
 
 /** Follows a shaky session: offers another look, and books nothing on its own. */
-export function RevisionSuggestion({ suggestion, open, onClose, onAccept }) {
+export function RevisionSuggestion({
+  suggestion,
+  open,
+  onClose,
+  onAccept,
+  title = 'Shall we look at that again?',
+  lead = 'That one felt hard, which is worth knowing rather than worrying about.',
+}) {
   const [working, setWorking] = useState(false);
   if (!suggestion) return null;
 
@@ -170,7 +177,7 @@ export function RevisionSuggestion({ suggestion, open, onClose, onAccept }) {
     <Modal
       open={open}
       onClose={onClose}
-      title="Shall we look at that again?"
+      title={title}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={working}>
@@ -194,8 +201,7 @@ export function RevisionSuggestion({ suggestion, open, onClose, onAccept }) {
       }
     >
       <p className="text-sm leading-relaxed text-ink-soft">
-        That one felt hard, which is worth knowing rather than worrying about. There is room for
-        another {suggestion.scheduled_duration_minutes} minutes on{' '}
+        {lead} There is room for another {suggestion.scheduled_duration_minutes} minutes on{' '}
         <strong className="text-ink">{longDate(suggestion.scheduled_date)}</strong> at{' '}
         <strong className="text-ink">{suggestion.scheduled_start_time}</strong>. Nothing is booked
         unless you say so.

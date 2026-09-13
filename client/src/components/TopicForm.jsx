@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
+import { api } from '../api/client.js';
+import { LLMBridge } from './LLMBridge.jsx';
 import { Modal } from './Modal.jsx';
 import { SubTopicEditor } from './SubTopicEditor.jsx';
 import { Button, Field, Select, TextArea, TextInput } from './ui.jsx';
+import { useToast } from '../hooks/useToast.jsx';
 import { DIFFICULTY_LABELS, STATUS_LABELS, STATUS_ORDER } from '../lib/format.js';
+import { topicNotesPrompt } from '../lib/prompts.js';
+import { topicNotesSchema } from '../lib/schemas.js';
 
 const blank = {
   title: '',
@@ -31,13 +36,20 @@ const fromTopic = (topic) =>
 
 /** Add or edit a single topic. Used from the topic list. */
 export function TopicForm({ open, onClose, onSave, topic, subjectName }) {
+  const toast = useToast();
   const [draft, setDraft] = useState(blank);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  // Study notes are a separate, AI-generated field: saved straight to the
+  // topic the moment they're confirmed, independent of the rest of this form.
+  const [notes, setNotes] = useState({ key_concepts: null, resources: [] });
+  const [notesBridgeOpen, setNotesBridgeOpen] = useState(false);
+
   useEffect(() => {
     if (open) {
       setDraft(fromTopic(topic));
+      setNotes({ key_concepts: topic?.key_concepts ?? null, resources: topic?.resources ?? [] });
       setError(null);
     }
   }, [open, topic]);
@@ -147,7 +159,77 @@ export function TopicForm({ open, onClose, onSave, topic, subjectName }) {
         </Field>
 
         {error && <p className="text-sm text-amber-800">{error}</p>}
+
+        {topic && (
+          <div className="rounded-xl2 bg-paper-sunk p-4">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
+                Study notes
+              </span>
+              <Button size="sm" onClick={() => setNotesBridgeOpen(true)}>
+                {notes.key_concepts ? 'Regenerate' : 'Generate study notes'}
+              </Button>
+            </div>
+
+            {notes.key_concepts ? (
+              <div className="space-y-2 text-sm">
+                <p className="whitespace-pre-line text-ink-soft">{notes.key_concepts}</p>
+                {notes.resources.length > 0 && (
+                  <ul className="space-y-1 border-t border-black/5 pt-2">
+                    {notes.resources.map((resource) => (
+                      <li key={resource.title} className="text-xs text-ink-soft">
+                        <span className="font-medium text-ink">{resource.title}</span>
+                        {resource.type ? ` · ${resource.type}` : ''}
+                        {resource.note ? ` — ${resource.note}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-ink-faint">
+                Not generated yet — ask Claude or ChatGPT for a quick summary and a few resources to
+                look at.
+              </p>
+            )}
+          </div>
+        )}
       </div>
+
+      {topic && (
+        <LLMBridge
+          open={notesBridgeOpen}
+          onClose={() => setNotesBridgeOpen(false)}
+          title={`Study notes for ${topic.tracking_number}`}
+          purpose="This app never contacts an AI service — copy the prompt across yourself, then bring the reply back."
+          prompt={topicNotesPrompt({ topic })}
+          schema={topicNotesSchema}
+          saveLabel="Save these notes"
+          renderPreview={(data) => (
+            <div className="space-y-2 text-sm">
+              <p className="whitespace-pre-line text-ink-soft">{data.key_concepts}</p>
+              {data.resources?.length > 0 && (
+                <ul className="space-y-1 border-t border-black/5 pt-2">
+                  {data.resources.map((resource) => (
+                    <li key={resource.title} className="text-xs text-ink-soft">
+                      <span className="font-medium text-ink">{resource.title}</span>
+                      {resource.type ? ` · ${resource.type}` : ''}
+                      {resource.note ? ` — ${resource.note}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          onSave={async (data) => {
+            const resources = data.resources ?? [];
+            await api.topics.update(topic.id, { key_concepts: data.key_concepts, resources });
+            setNotes({ key_concepts: data.key_concepts, resources });
+            setNotesBridgeOpen(false);
+            toast.celebrate('Study notes saved.');
+          }}
+        />
+      )}
     </Modal>
   );
 }

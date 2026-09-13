@@ -256,6 +256,52 @@ export function clearRange(studentId, from, to, { includeCompleted = false } = {
   return { removed: entries.length };
 }
 
+/**
+ * Finds the next free gap for a topic without booking anything — used when a
+ * suggestion (a weekly action plan priority, a shaky-topic revision) needs to
+ * show where it would go before the student decides whether they want it.
+ */
+export function suggestStudySlot(studentId, topicId, { minutes, from, days = 7 } = {}) {
+  const db = getDb();
+  const topic = db
+    .prepare(
+      `SELECT t.id, t.tracking_number, t.title, t.allocated_duration_minutes
+       FROM topic t JOIN subject s ON s.id = t.subject_id
+       WHERE t.id = ? AND s.student_id = ?`
+    )
+    .get(topicId, studentId);
+  if (!topic) throw notFound('That topic no longer exists.');
+
+  const duration = Number(minutes) > 0 ? Number(minutes) : topic.allocated_duration_minutes;
+  const settings = getPlannerSettings();
+
+  const startDate = from && isIsoDate(from) ? from : todayIso();
+  const range = datesBetween(startDate, addDays(startDate, days - 1));
+
+  const busy = buildBusyMap(
+    range,
+    listAnchors(studentId),
+    listPlanEntries(studentId, range[0], range[range.length - 1]),
+    { entryPadding: settings.break_minutes }
+  );
+
+  for (const date of range) {
+    const start = reserveSlot(busy.get(date), duration, settings);
+    if (start !== null) {
+      return {
+        topic_id: topic.id,
+        tracking_number: topic.tracking_number,
+        title: topic.title,
+        scheduled_date: date,
+        scheduled_start_time: toTime(start),
+        scheduled_duration_minutes: duration,
+      };
+    }
+  }
+
+  return null;
+}
+
 /** Topics waiting for a place on the calendar, in the order they should get one. */
 export function listUnscheduledTopics(studentId) {
   return getDb()

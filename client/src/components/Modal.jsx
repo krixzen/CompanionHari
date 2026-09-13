@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
 const SIZES = {
@@ -7,6 +7,11 @@ const SIZES = {
   xl: 'max-w-4xl',
 };
 
+// A few features (regenerating AI content while editing, say) open one modal
+// from inside another. Every open Modal registers itself here so Escape only
+// ever closes the one on top — without this, one press would close both.
+const openStack = [];
+
 /**
  * A dialog that closes on Escape or a click outside, and keeps the page behind
  * it from scrolling. Rendered into document.body so no parent's overflow
@@ -14,12 +19,15 @@ const SIZES = {
  */
 export function Modal({ open, onClose, title, description, size = 'md', footer, children }) {
   const panelRef = useRef(null);
+  const id = useId();
 
   useEffect(() => {
     if (!open) return undefined;
 
+    openStack.push(id);
+
     const onKeyDown = (event) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape' && openStack[openStack.length - 1] === id) onClose();
     };
     document.addEventListener('keydown', onKeyDown);
 
@@ -31,8 +39,10 @@ export function Modal({ open, onClose, title, description, size = 'md', footer, 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = previousOverflow;
+      const index = openStack.indexOf(id);
+      if (index !== -1) openStack.splice(index, 1);
     };
-  }, [open, onClose]);
+  }, [open, onClose, id]);
 
   if (!open) return null;
 
