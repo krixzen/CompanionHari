@@ -1,0 +1,29 @@
+{
+  "name": "study-planner",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A calm, local-first study planner. No cloud, no API keys \u2014 your data stays on your machine.",
+  "type": "module",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently --names \"server,client\" --prefix-colors \"magenta.bold,cyan.bold\" --kill-others-on-fail \"npm run dev -w server\" \"npm run dev -w client\"",
+    "dev:server": "npm run dev -w server",
+    "dev:client": "npm run dev -w client",
+    "build": "npm run build -w client",
+    "start": "npm run start -w server",
+    "db:migrate": "npm run db:migrate -w server",
+    "db:reset": "npm run db:reset -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "overrides": {
+    "qs": "^6.16.0"
+  }
+}
