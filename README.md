@@ -324,6 +324,23 @@ in plain English ("every day in this stretch is already at its 4-hour limit").
 Days that have already gone by are left alone, and so are the hours earlier
 today.
 
+### Or let an assistant plan it
+**"Ask Claude or ChatGPT to plan it,"** next to Plan my week, hands the same
+job to a conversation instead of the built-in algorithm. It writes a prompt
+containing everything the app knows — your fixed commitments, anything
+already on the calendar, and every topic waiting for a slot — and asks for a
+day-by-day timetable back.
+
+Paste the reply in and it goes to a review list: each proposed block shows
+the topic it matched to, with its date, time and length all editable, and a
+tick box to leave anything out. Nothing is booked until you press Save. A
+block that names a tracking number the app doesn't recognise — already
+scheduled, or not on your list at all — is called out and left aside rather
+than silently dropped or guessed at.
+
+Whichever way a study block gets booked — this, Plan my week, or dragging a
+topic on by hand — its revision chain is booked automatically the same way.
+
 ### Revision, booked automatically
 Every study block gets three short revision blocks after it — the next day,
 three days later and a week later. A revision block is about a third of the
@@ -400,6 +417,11 @@ from the row, drag topics into a different order, select several at once and
 set all their study times together, and add topics by hand when a syllabus is
 short. Dragging is switched off while a search or filter is active, since the
 order you can see is not the whole order.
+
+Sub-topics carry their own number too — `PHY-001/01`, `PHY-001/02` — shown
+wherever a topic's sub-topics are listed, on the topic list and when editing
+one. It is positional: it reflects where a sub-topic currently sits in the
+list, the same way the list itself is ordered.
 
 ### The LLM Bridge
 This app makes no network calls to any AI service, and never will. Instead,

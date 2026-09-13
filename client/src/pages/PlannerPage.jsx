@@ -13,11 +13,15 @@ import { api } from '../api/client.js';
 import { PageHeader } from '../components/AppShell.jsx';
 import { ConfirmDialog } from '../components/ConfirmDialog.jsx';
 import { EntryDialog } from '../components/EntryDialog.jsx';
+import { LLMBridge } from '../components/LLMBridge.jsx';
 import { PlannerSettingsDialog } from '../components/PlannerSettingsDialog.jsx';
 import { RevisionSuggestion, SessionDialog } from '../components/SessionDialog.jsx';
+import { ScheduleReview } from '../components/ScheduleReview.jsx';
 import { UnscheduledPanel } from '../components/UnscheduledPanel.jsx';
 import { PX_PER_MINUTE, WeekGrid, gridWindow } from '../components/WeekGrid.jsx';
 import { Button, Card, EmptyState, ErrorNote, Spinner } from '../components/ui.jsx';
+import { schedulePlanPrompt } from '../lib/prompts.js';
+import { schedulePlanSchema } from '../lib/schemas.js';
 import { useMediaQuery } from '../hooks/useMediaQuery.js';
 import { usePlanner } from '../hooks/usePlanner.js';
 import { useStudyData } from '../hooks/useStudyData.jsx';
@@ -65,6 +69,9 @@ export default function PlannerPage() {
   const [suggestion, setSuggestion] = useState(null);
   const [planning, setPlanning] = useState(false);
   const [report, setReport] = useState(null);
+  const [scheduleBridgeOpen, setScheduleBridgeOpen] = useState(false);
+  const [scheduleDraft, setScheduleDraft] = useState(null); // rows awaiting review, or null when closed
+  const [savingSchedule, setSavingSchedule] = useState(false);
 
   const dates = useMemo(() => weekDates(monday), [monday]);
   const visibleDates = isNarrow ? [selectedDay] : dates;
@@ -165,6 +172,58 @@ export default function PlannerPage() {
     }
   };
 
+  /** Resolves the assistant's tracking numbers against topics actually waiting for a slot. */
+  const resolveScheduleDraft = (data) => {
+    let key = 0;
+    return data.entries.map((entry) => {
+      const topic = unscheduled.find((candidate) => candidate.tracking_number === entry.tracking_number);
+      return {
+        key: `sched-${(key += 1)}`,
+        tracking_number: entry.tracking_number,
+        topic,
+        include: Boolean(topic),
+        scheduled_date: entry.date,
+        scheduled_start_time: entry.start_time,
+        scheduled_duration_minutes: entry.duration_minutes,
+      };
+    });
+  };
+
+  const saveSchedule = async (rows) => {
+    const chosen = rows.filter((row) => row.include && row.topic);
+    if (chosen.length === 0) {
+      setScheduleDraft(null);
+      return;
+    }
+
+    setSavingSchedule(true);
+    let failed = 0;
+    for (const row of chosen) {
+      try {
+        await api.plan.create({
+          topic_id: row.topic.id,
+          scheduled_date: row.scheduled_date,
+          scheduled_start_time: row.scheduled_start_time,
+          scheduled_duration_minutes: Number(row.scheduled_duration_minutes),
+        });
+      } catch {
+        failed += 1;
+      }
+    }
+    await refresh();
+    await refreshSubjects();
+    setSavingSchedule(false);
+    setScheduleDraft(null);
+
+    const placed = chosen.length - failed;
+    if (placed > 0) {
+      toast.celebrate(`${placed} block${placed === 1 ? '' : 's'} added to the calendar.`);
+    }
+    if (failed > 0) {
+      toast.warn(`${failed} block${failed === 1 ? '' : 's'} could not be placed — check for a clash and try again.`);
+    }
+  };
+
   const saveEntry = async (entry, changes) => {
     await api.plan.update(entry.id, changes);
     await refresh();
@@ -250,6 +309,7 @@ export default function PlannerPage() {
         actions={
           <>
             <Button onClick={() => setSettingsOpen(true)}>Planner settings</Button>
+            <Button onClick={() => setScheduleBridgeOpen(true)}>Ask Claude or ChatGPT to plan it</Button>
             <Button variant="primary" onClick={planWeek} disabled={planning}>
               {planning ? 'Planning…' : 'Plan my week'}
             </Button>
@@ -364,6 +424,16 @@ export default function PlannerPage() {
         </Card>
       )}
 
+      {scheduleDraft && (
+        <ScheduleReview
+          rows={scheduleDraft}
+          onChange={setScheduleDraft}
+          onSave={saveSchedule}
+          onDismiss={() => setScheduleDraft(null)}
+          saving={savingSchedule}
+        />
+      )}
+
       {entries.length === 0 && unscheduled.length === 0 && (
         <div className="mt-4">
           <EmptyState
@@ -410,6 +480,33 @@ export default function PlannerPage() {
         onSave={async (changes) => {
           setSettings(await api.settings.savePlanner(changes));
           toast.celebrate('Saved. Plan the week again to use the new settings.');
+        }}
+      />
+
+      <LLMBridge
+        open={scheduleBridgeOpen}
+        onClose={() => setScheduleBridgeOpen(false)}
+        title="Plan the week together"
+        purpose="This app never contacts an AI service — copy the prompt across yourself, then bring the reply back. Nothing is booked until you review and save it below."
+        prompt={schedulePlanPrompt({
+          from: monday,
+          to: addDays(monday, 6),
+          anchors,
+          topics: unscheduled,
+          existingEntries: entries,
+          settings,
+        })}
+        schema={schedulePlanSchema}
+        saveLabel="Review this schedule"
+        renderPreview={(data) => (
+          <p className="text-sm text-sage-800">
+            {data.entries.length} block{data.entries.length === 1 ? '' : 's'} came back. They go to
+            a review list next — nothing is booked yet.
+          </p>
+        )}
+        onSave={(data) => {
+          setScheduleDraft(resolveScheduleDraft(data));
+          setScheduleBridgeOpen(false);
         }}
       />
 
