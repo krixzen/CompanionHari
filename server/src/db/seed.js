@@ -45,6 +45,16 @@ export function ensureSeedData() {
     console.log('  ✓ created starter profile and five subjects');
   }
 
+  const defaultTemplate = db
+    .prepare('SELECT id FROM week_template WHERE student_id = ? AND is_default = 1')
+    .get(student.id);
+  if (!defaultTemplate) {
+    db.prepare('INSERT INTO week_template (student_id, name, is_default) VALUES (?, ?, 1)').run(
+      student.id,
+      'Regular week'
+    );
+  }
+
   return student;
 }
 

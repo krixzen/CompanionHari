@@ -1,7 +1,6 @@
 import { getDb } from '../db/index.js';
 import { badRequest, notFound } from '../lib/httpError.js';
 import { addDays, datesBetween, isIsoDate, toMinutes, toTime, todayIso } from '../lib/time.js';
-import { listAnchors } from './anchorService.js';
 import {
   REVISION_OFFSETS,
   buildBusyMap,
@@ -11,6 +10,7 @@ import {
   revisionMinutes,
 } from './scheduler.js';
 import { getPlannerSettings } from './settingsService.js';
+import { resolveEffectiveAnchors } from './templateService.js';
 
 const ENTRY_SELECT = `
   SELECT
@@ -122,7 +122,7 @@ function placeRevisions(studentId, studyEntries, settings) {
   const range = datesBetween(from, to);
 
   const booked = listPlanEntries(studentId, from, to);
-  const busy = buildBusyMap(range, listAnchors(studentId), booked, {
+  const busy = buildBusyMap(range, resolveEffectiveAnchors(studentId, range), booked, {
     entryPadding: settings.break_minutes,
   });
   // Revisions count towards the same daily limit as study does.
@@ -307,7 +307,7 @@ export function suggestStudySlot(studentId, topicId, { minutes, from, days = 7 }
 
   const busy = buildBusyMap(
     range,
-    listAnchors(studentId),
+    resolveEffectiveAnchors(studentId, range),
     listPlanEntries(studentId, range[0], range[range.length - 1]),
     { entryPadding: settings.break_minutes }
   );
@@ -388,7 +388,7 @@ export function autoPlan(studentId, from, to) {
   const now = new Date();
   const { placements, skipped } = planTopics({
     dates,
-    anchors: listAnchors(studentId),
+    anchors: resolveEffectiveAnchors(studentId, dates),
     existingEntries: listPlanEntries(studentId, dates[0], dates[dates.length - 1]),
     topics,
     settings,

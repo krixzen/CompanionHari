@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getCurrentStudent } from '../db/seed.js';
 import { asyncRoute, badRequest } from '../lib/httpError.js';
+import { addDays, datesBetween, isIsoDate, startOfWeek, todayIso } from '../lib/time.js';
 import {
   ANCHOR_TYPES,
   addStarterWeek,
@@ -9,6 +10,7 @@ import {
   listAnchors,
   updateAnchor,
 } from '../services/anchorService.js';
+import { resolveEffectiveAnchors } from '../services/templateService.js';
 
 export const anchorsRouter = Router();
 
@@ -34,6 +36,21 @@ const readAnchor = (body) => ({
 anchorsRouter.get('/', (req, res) => {
   res.json({ anchors: listAnchors(studentId()), types: ANCHOR_TYPES });
 });
+
+// The resolved picture for a stretch of the calendar: whichever week
+// template governs each date, plus any one-off extras layered on top.
+// Declared before /:id so "effective" is never read as an id — though
+// there is no GET /:id today, this keeps the file consistent if one is
+// ever added.
+anchorsRouter.get(
+  '/effective',
+  asyncRoute((req, res) => {
+    const from = req.query.from ?? startOfWeek(todayIso());
+    const to = req.query.to ?? addDays(from, 6);
+    if (!isIsoDate(from) || !isIsoDate(to)) throw badRequest('Dates should look like 2026-09-14.');
+    res.json({ anchors: resolveEffectiveAnchors(studentId(), datesBetween(from, to)) });
+  })
+);
 
 anchorsRouter.post(
   '/',
