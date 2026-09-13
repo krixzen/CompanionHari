@@ -158,5 +158,20 @@ export const schedulePlanSchema = {
         },
       },
     },
+    personal_time: {
+      type: 'array',
+      maxItems: 40,
+      items: {
+        type: 'object',
+        required: ['date', 'label', 'kind', 'start_time', 'end_time'],
+        properties: {
+          date: { type: 'string', minLength: 10, maxLength: 10 },
+          label: { type: 'string', maxLength: 40 },
+          kind: { type: 'string', enum: ['family', 'leisure'] },
+          start_time: { type: 'string', minLength: 4, maxLength: 5 },
+          end_time: { type: 'string', minLength: 4, maxLength: 5 },
+        },
+      },
+    },
   },
 };

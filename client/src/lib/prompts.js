@@ -253,6 +253,8 @@ Make it realistic and thoughtful, not a cram session:
 
 Lunch and dinner are not fixed commitments here — you decide when they happen each day, fitting them around everything else and giving each a sensible length (roughly 30–45 minutes). List one lunch and one dinner for every day in this stretch in a separate top-level "meals" array (not "entries", since they are not study blocks), each with "date", "label" ("Lunch" or "Dinner"), "start_time" and "end_time".
 
+Family time and leisure aren't fixed either — a student who only ever studies burns out, so build some in rather than filling every free minute. Across the stretch, propose a mix of: some family time (with parents, or the kind of thing the busy list already calls "Family time" if that's still there for older weeks), and some pure leisure — free time, phone, TV, games, whatever a teenager actually wants to do with a gap. These do not need to happen every day like meals do; a solid stretch on a couple of days beats a token five minutes on all of them. List them in a separate top-level "personal_time" array, each with "date", "label" (whatever fits — "Family time", "Free time", "Phone time", "TV time"), "kind" ("family" or "leisure"), "start_time" and "end_time".
+
 Reply with JSON only. No explanation before or after it, and no markdown code fence.
 
 The JSON must match this schema:

@@ -16,7 +16,7 @@ import { EntryDialog } from '../components/EntryDialog.jsx';
 import { LLMBridge } from '../components/LLMBridge.jsx';
 import { PlannerSettingsDialog } from '../components/PlannerSettingsDialog.jsx';
 import { RevisionSuggestion, SessionDialog } from '../components/SessionDialog.jsx';
-import { MealsReview } from '../components/MealsReview.jsx';
+import { ExtrasReview } from '../components/ExtrasReview.jsx';
 import { ScheduleReview } from '../components/ScheduleReview.jsx';
 import { UnscheduledPanel } from '../components/UnscheduledPanel.jsx';
 import { PX_PER_MINUTE, WeekGrid, gridWindow } from '../components/WeekGrid.jsx';
@@ -85,6 +85,8 @@ export default function PlannerPage() {
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [mealDraft, setMealDraft] = useState(null); // meal-time rows awaiting review, or null when closed
   const [savingMeals, setSavingMeals] = useState(false);
+  const [personalDraft, setPersonalDraft] = useState(null); // family/leisure rows awaiting review, or null when closed
+  const [savingPersonal, setSavingPersonal] = useState(false);
 
   // Which stretch "Ask Claude or ChatGPT to plan it" should cover — the
   // visible week by default, or further out when replanning a bigger chunk
@@ -301,20 +303,35 @@ export default function PlannerPage() {
     }));
   };
 
-  const saveMeals = async (rows) => {
+  /** Family time and leisure the assistant proposed — same shape, different anchor type. */
+  const resolvePersonalDraft = (data) => {
+    let key = 0;
+    return (data.personal_time ?? []).map((block) => ({
+      key: `personal-${(key += 1)}`,
+      label: block.label,
+      kind: block.kind === 'family' ? 'family' : 'leisure',
+      scheduled_date: block.date,
+      start_time: block.start_time,
+      end_time: block.end_time,
+      include: true,
+    }));
+  };
+
+  /** Shared save path for one-off, non-topic additions (meals, family/leisure time). */
+  const saveExtraAnchors = async (rows, { defaultLabel, resolveType, setSaving, setDraft, noun }) => {
     const chosen = rows.filter((row) => row.include);
     if (chosen.length === 0) {
-      setMealDraft(null);
+      setDraft(null);
       return;
     }
 
-    setSavingMeals(true);
+    setSaving(true);
     let failed = 0;
     for (const row of chosen) {
       try {
         await api.anchors.create({
-          label: row.label.trim() || 'Meal',
-          type: 'meal',
+          label: row.label.trim() || defaultLabel,
+          type: resolveType(row),
           day_of_week: dayOfWeek(row.scheduled_date),
           start_time: row.start_time,
           end_time: row.end_time,
@@ -326,15 +343,33 @@ export default function PlannerPage() {
       }
     }
     await refresh();
-    setSavingMeals(false);
-    setMealDraft(null);
+    setSaving(false);
+    setDraft(null);
 
     const placed = chosen.length - failed;
-    if (placed > 0) toast.celebrate(`${placed} meal time${placed === 1 ? '' : 's'} added.`);
+    if (placed > 0) toast.celebrate(`${placed} ${noun}${placed === 1 ? '' : 's'} added.`);
     if (failed > 0) {
-      toast.warn(`${failed} meal time${failed === 1 ? '' : 's'} could not be added — check for a clash and try again.`);
+      toast.warn(`${failed} ${noun}${failed === 1 ? '' : 's'} could not be added — check for a clash and try again.`);
     }
   };
+
+  const saveMeals = (rows) =>
+    saveExtraAnchors(rows, {
+      defaultLabel: 'Meal',
+      resolveType: () => 'meal',
+      setSaving: setSavingMeals,
+      setDraft: setMealDraft,
+      noun: 'meal time',
+    });
+
+  const savePersonalTime = (rows) =>
+    saveExtraAnchors(rows, {
+      defaultLabel: 'Personal time',
+      resolveType: (row) => (row.kind === 'family' ? 'family' : 'other'),
+      setSaving: setSavingPersonal,
+      setDraft: setPersonalDraft,
+      noun: 'block',
+    });
 
   const saveEntry = async (entry, changes) => {
     await api.plan.update(entry.id, changes);
@@ -591,12 +626,26 @@ export default function PlannerPage() {
       )}
 
       {mealDraft && mealDraft.length > 0 && (
-        <MealsReview
+        <ExtrasReview
           rows={mealDraft}
           onChange={setMealDraft}
           onSave={saveMeals}
           onDismiss={() => setMealDraft(null)}
           saving={savingMeals}
+          noun="meal time"
+          description="Lunch and dinner aren't fixed any more — these are just for this stretch. Adjust anything, or untick what you don't want."
+        />
+      )}
+
+      {personalDraft && personalDraft.length > 0 && (
+        <ExtrasReview
+          rows={personalDraft}
+          onChange={setPersonalDraft}
+          onSave={savePersonalTime}
+          onDismiss={() => setPersonalDraft(null)}
+          saving={savingPersonal}
+          noun="block"
+          description="Family time and leisure aren't fixed either — a mix the assistant thought made sense for this stretch. Adjust anything, or untick what you don't want."
         />
       )}
 
@@ -666,16 +715,20 @@ export default function PlannerPage() {
         })}
         schema={schedulePlanSchema}
         saveLabel="Review this schedule"
-        renderPreview={(data) => (
-          <p className="text-sm text-sage-800">
-            {data.entries.length} block{data.entries.length === 1 ? '' : 's'}
-            {data.meals?.length ? ` and ${data.meals.length} meal time${data.meals.length === 1 ? '' : 's'}` : ''} came
-            back. They go to a review list next — nothing is booked yet.
-          </p>
-        )}
+        renderPreview={(data) => {
+          const extras = (data.meals?.length ?? 0) + (data.personal_time?.length ?? 0);
+          return (
+            <p className="text-sm text-sage-800">
+              {data.entries.length} block{data.entries.length === 1 ? '' : 's'}
+              {extras ? ` and ${extras} other block${extras === 1 ? '' : 's'} (meals, family time, leisure)` : ''} came
+              back. They go to a review list next — nothing is booked yet.
+            </p>
+          );
+        }}
         onSave={(data) => {
           setScheduleDraft(resolveScheduleDraft(data));
           setMealDraft(resolveMealDraft(data));
+          setPersonalDraft(resolvePersonalDraft(data));
           setScheduleBridgeOpen(false);
         }}
       />
