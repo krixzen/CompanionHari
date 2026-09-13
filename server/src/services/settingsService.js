@@ -1,6 +1,6 @@
 import { getDb } from '../db/index.js';
 import { badRequest } from '../lib/httpError.js';
-import { startOfWeek, toMinutes, todayIso } from '../lib/time.js';
+import { isIsoDate, startOfWeek, toMinutes, todayIso } from '../lib/time.js';
 
 const PLANNER_KEY = 'planner';
 const TERM_KEY = 'term';
@@ -81,37 +81,70 @@ export function savePlannerSettings(changes) {
   return next;
 }
 
+const TERM_DEFAULTS = { exam_date: null, cover_by_date: null };
+
 /**
  * When "Week 1" begins, so that a fixed commitment can be scoped to a
  * specific week ("Week 14 only") rather than repeating forever. Defaults to
  * the Monday of the current week, purely so the feature is usable the moment
  * it's opened — the student is expected to correct it to their actual term
  * start once, after which it sticks.
+ *
+ * `exam_date` and `cover_by_date` are optional and both null until set: the
+ * exam itself, and the date by which every topic should have had its first
+ * pass, so whatever plans a schedule can tell a coverage push from a
+ * revision-and-consolidation stretch.
  */
 export function getTermSettings() {
   const row = getDb().prepare('SELECT value FROM setting WHERE key = ?').get(TERM_KEY);
-  if (!row) return { start_date: startOfWeek(todayIso()) };
+  if (!row) return { start_date: startOfWeek(todayIso()), ...TERM_DEFAULTS };
 
   try {
     const parsed = JSON.parse(row.value);
-    return { start_date: parsed.start_date || startOfWeek(todayIso()) };
+    return {
+      start_date: parsed.start_date || startOfWeek(todayIso()),
+      exam_date: parsed.exam_date ?? null,
+      cover_by_date: parsed.cover_by_date ?? null,
+    };
   } catch {
-    return { start_date: startOfWeek(todayIso()) };
+    return { start_date: startOfWeek(todayIso()), ...TERM_DEFAULTS };
   }
 }
 
-export function saveTermSettings({ start_date: startDate }) {
-  if (typeof startDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
-    throw badRequest('The term start date should look like 2026-06-01.');
+/** Every field is optional here — only what's provided is changed. */
+export function saveTermSettings(changes) {
+  const next = { ...getTermSettings() };
+  const isDateOrNull = (value) => value === null || isIsoDate(value);
+
+  if (changes.start_date !== undefined) {
+    if (!isIsoDate(changes.start_date)) {
+      throw badRequest('The term start date should look like 2026-06-01.');
+    }
+    next.start_date = changes.start_date;
   }
 
-  const value = { start_date: startDate };
+  if (changes.exam_date !== undefined) {
+    if (!isDateOrNull(changes.exam_date)) throw badRequest('The exam date should look like 2027-03-27.');
+    next.exam_date = changes.exam_date;
+  }
+
+  if (changes.cover_by_date !== undefined) {
+    if (!isDateOrNull(changes.cover_by_date)) {
+      throw badRequest('The "cover everything by" date should look like 2027-01-31.');
+    }
+    next.cover_by_date = changes.cover_by_date;
+  }
+
+  if (next.cover_by_date && next.exam_date && next.cover_by_date > next.exam_date) {
+    throw badRequest('The coverage deadline has to be on or before the exam date.');
+  }
+
   getDb()
     .prepare(
       `INSERT INTO setting (key, value) VALUES (?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
     )
-    .run(TERM_KEY, JSON.stringify(value));
+    .run(TERM_KEY, JSON.stringify(next));
 
-  return value;
+  return next;
 }

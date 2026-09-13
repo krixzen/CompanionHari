@@ -11,6 +11,7 @@ export function usePlanner(mondayIso) {
   const [entries, setEntries] = useState([]);
   const [anchors, setAnchors] = useState([]);
   const [settings, setSettings] = useState(null);
+  const [term, setTerm] = useState(null);
   const [unscheduled, setUnscheduled] = useState([]);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
@@ -18,15 +19,17 @@ export function usePlanner(mondayIso) {
   const load = useCallback(async () => {
     setStatus('loading');
     try {
-      const [loadedEntries, loadedAnchors, loadedSettings, loadedUnscheduled] = await Promise.all([
+      const [loadedEntries, loadedAnchors, loadedSettings, loadedTerm, loadedUnscheduled] = await Promise.all([
         api.plan.list(mondayIso, addDays(mondayIso, 6)),
         api.anchors.effective(mondayIso, addDays(mondayIso, 6)),
         api.settings.planner(),
+        api.settings.term(),
         api.plan.unscheduled(),
       ]);
       setEntries(loadedEntries);
       setAnchors(loadedAnchors);
       setSettings(loadedSettings);
+      setTerm(loadedTerm);
       setUnscheduled(loadedUnscheduled);
       setStatus('ready');
       setError(null);
@@ -56,6 +59,7 @@ export function usePlanner(mondayIso) {
     anchors,
     settings,
     setSettings,
+    term,
     unscheduled,
     status,
     error,

@@ -397,24 +397,54 @@ export default function AnchorsPage() {
  * start and every week number lines up with it from then on.
  */
 function TermRow({ term, onSaved }) {
-  const toast = useToast();
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState('');
-  const [saving, setSaving] = useState(false);
-
   if (!term) return null;
 
+  return (
+    <Card className="mb-5 p-4">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <DateSetting
+          label="Counting weeks from"
+          value={term.start_date}
+          hint="Week 1 starts here — everything above and below is numbered from it."
+          onSave={(value) => onSaved(api.settings.saveTerm({ start_date: value }))}
+        />
+        <DateSetting
+          label="Cover every topic by"
+          value={term.cover_by_date}
+          hint="After this, an AI-planned schedule leans on revision rather than new topics."
+          allowClear
+          onSave={(value) => onSaved(api.settings.saveTerm({ cover_by_date: value }))}
+        />
+        <DateSetting
+          label="Exam date"
+          value={term.exam_date}
+          hint="The AI scheduler paces itself against how much time is left until this."
+          allowClear
+          onSave={(value) => onSaved(api.settings.saveTerm({ exam_date: value }))}
+        />
+      </div>
+    </Card>
+  );
+}
+
+/** One inline-editable date setting, with an optional way to clear it back to unset. */
+function DateSetting({ label, value, hint, onSave, allowClear = false }) {
+  const toast = useToast();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+
   const start = () => {
-    setValue(term.start_date);
+    setDraft(value ?? '');
     setEditing(true);
   };
 
-  const save = async () => {
+  const commit = async (nextValue) => {
     setSaving(true);
     try {
-      onSaved(await api.settings.saveTerm({ start_date: value }));
+      await onSave(nextValue);
       setEditing(false);
-      toast.celebrate('Term start saved.');
+      toast.celebrate(`${label} ${nextValue ? 'saved' : 'cleared'}.`);
     } catch (caught) {
       toast.warn(caught.message);
     } finally {
@@ -423,37 +453,47 @@ function TermRow({ term, onSaved }) {
   };
 
   return (
-    <p className="mb-5 text-sm text-ink-faint">
-      Counting weeks from{' '}
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">{label}</p>
       {editing ? (
-        <span className="inline-flex items-center gap-1.5 align-middle">
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
           <input
             type="date"
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            className="rounded-lg border border-black/10 bg-paper-raised px-2 py-0.5 text-sm text-ink"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            className="rounded-lg border border-black/10 bg-paper-raised px-2 py-1 text-sm text-ink"
           />
-          <Button size="sm" variant="primary" onClick={save} disabled={saving}>
+          <Button size="sm" variant="primary" onClick={() => commit(draft || null)} disabled={saving}>
             {saving ? 'Saving…' : 'Save'}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={saving}>
             Cancel
           </Button>
-        </span>
+        </div>
       ) : (
-        <>
-          <strong className="text-ink">{formatDate(term.start_date)}</strong> as Week 1 —{' '}
-          <button
-            type="button"
-            onClick={start}
-            className="text-sage-700 underline-offset-2 hover:underline"
-          >
-            change this
-          </button>{' '}
-          if that is not when your term actually started.
-        </>
+        <p className="mt-1 text-sm text-ink">
+          {value ? <strong className="text-ink">{formatDate(value)}</strong> : <span className="text-ink-faint">Not set</span>}
+          {' — '}
+          <button type="button" onClick={start} className="text-sage-700 underline-offset-2 hover:underline">
+            {value ? 'change' : 'set'}
+          </button>
+          {allowClear && value && (
+            <>
+              {' · '}
+              <button
+                type="button"
+                onClick={() => commit(null)}
+                disabled={saving}
+                className="text-ink-faint underline-offset-2 hover:underline"
+              >
+                clear
+              </button>
+            </>
+          )}
+        </p>
       )}
-    </p>
+      {hint && <p className="mt-0.5 text-xs text-ink-faint">{hint}</p>}
+    </div>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   DndContext,
@@ -19,7 +19,7 @@ import { RevisionSuggestion, SessionDialog } from '../components/SessionDialog.j
 import { ScheduleReview } from '../components/ScheduleReview.jsx';
 import { UnscheduledPanel } from '../components/UnscheduledPanel.jsx';
 import { PX_PER_MINUTE, WeekGrid, gridWindow } from '../components/WeekGrid.jsx';
-import { Button, Card, EmptyState, ErrorNote, Spinner } from '../components/ui.jsx';
+import { Button, Card, EmptyState, ErrorNote, Select, Spinner } from '../components/ui.jsx';
 import { schedulePlanPrompt } from '../lib/prompts.js';
 import { schedulePlanSchema } from '../lib/schemas.js';
 import { useMediaQuery } from '../hooks/useMediaQuery.js';
@@ -33,12 +33,20 @@ import {
   dayNumber,
   dayOfWeek,
   describeWeek,
+  longDate,
   startOfWeek,
   toMinutes,
   toTime,
   todayIso,
   weekDates,
 } from '../lib/week.js';
+
+/** How far ahead "Ask Claude or ChatGPT to plan it" can be asked to look. */
+const SCHEDULE_HORIZONS = [
+  { key: 'week', label: 'This week', days: 6 },
+  { key: '2weeks', label: 'Next 2 weeks', days: 13 },
+  { key: '4weeks', label: 'Next 4 weeks', days: 27 },
+];
 
 export default function PlannerPage() {
   const today = todayIso();
@@ -53,6 +61,7 @@ export default function PlannerPage() {
     entries,
     anchors,
     settings,
+    term,
     unscheduled,
     status,
     error,
@@ -72,6 +81,39 @@ export default function PlannerPage() {
   const [scheduleBridgeOpen, setScheduleBridgeOpen] = useState(false);
   const [scheduleDraft, setScheduleDraft] = useState(null); // rows awaiting review, or null when closed
   const [savingSchedule, setSavingSchedule] = useState(false);
+
+  // Which stretch "Ask Claude or ChatGPT to plan it" should cover — the
+  // visible week by default, or further out when replanning a bigger chunk
+  // (after falling behind, say, or setting up a fresh coverage push).
+  const [scheduleHorizon, setScheduleHorizon] = useState('week');
+  const [scheduleContext, setScheduleContext] = useState({ from: monday, to: addDays(monday, 6), anchors, entries });
+  const [loadingScheduleContext, setLoadingScheduleContext] = useState(false);
+
+  const coverageAvailable = Boolean(term?.cover_by_date && term.cover_by_date > monday);
+  const scheduleTo =
+    scheduleHorizon === 'coverage' && coverageAvailable
+      ? term.cover_by_date
+      : addDays(monday, SCHEDULE_HORIZONS.find((option) => option.key === scheduleHorizon)?.days ?? 6);
+
+  useEffect(() => {
+    if (!coverageAvailable && scheduleHorizon === 'coverage') setScheduleHorizon('week');
+  }, [coverageAvailable, scheduleHorizon]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingScheduleContext(true);
+    Promise.all([api.anchors.effective(monday, scheduleTo), api.plan.list(monday, scheduleTo)])
+      .then(([rangedAnchors, rangedEntries]) => {
+        if (cancelled) return;
+        setScheduleContext({ from: monday, to: scheduleTo, anchors: rangedAnchors, entries: rangedEntries });
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingScheduleContext(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [monday, scheduleTo]);
 
   const dates = useMemo(() => weekDates(monday), [monday]);
   const visibleDates = isNarrow ? [selectedDay] : dates;
@@ -327,7 +369,22 @@ export default function PlannerPage() {
               <Button>Fixed commitments</Button>
             </Link>
             <Button onClick={() => setSettingsOpen(true)}>Planner settings</Button>
-            <Button onClick={() => setScheduleBridgeOpen(true)}>Ask Claude or ChatGPT to plan it</Button>
+            <Select
+              value={scheduleHorizon}
+              onChange={(event) => setScheduleHorizon(event.target.value)}
+              style={{ width: 'auto' }}
+              aria-label="How far ahead to plan with an assistant"
+            >
+              {SCHEDULE_HORIZONS.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+              {coverageAvailable && <option value="coverage">Until my coverage deadline</option>}
+            </Select>
+            <Button onClick={() => setScheduleBridgeOpen(true)} disabled={loadingScheduleContext}>
+              {loadingScheduleContext ? 'Preparing…' : 'Ask Claude or ChatGPT to plan it'}
+            </Button>
             <Button variant="primary" onClick={planWeek} disabled={planning}>
               {planning ? 'Planning…' : 'Plan my week'}
             </Button>
@@ -504,15 +561,17 @@ export default function PlannerPage() {
       <LLMBridge
         open={scheduleBridgeOpen}
         onClose={() => setScheduleBridgeOpen(false)}
-        title="Plan the week together"
-        purpose="This app never contacts an AI service — copy the prompt across yourself, then bring the reply back. Nothing is booked until you review and save it below."
+        title={`Plan ${longDate(scheduleContext.from)} – ${longDate(scheduleContext.to)} together`}
+        purpose="This app never contacts an AI service — copy the prompt across yourself, then bring the reply back. Nothing is booked until you review and save it below. Only what's still waiting for a slot is included, so re-running this later automatically picks up wherever you've got to."
         prompt={schedulePlanPrompt({
-          from: monday,
-          to: addDays(monday, 6),
-          anchors,
+          from: scheduleContext.from,
+          to: scheduleContext.to,
+          anchors: scheduleContext.anchors,
           topics: unscheduled,
-          existingEntries: entries,
+          existingEntries: scheduleContext.entries,
           settings,
+          examDate: term?.exam_date,
+          coverByDate: term?.cover_by_date,
         })}
         schema={schedulePlanSchema}
         saveLabel="Review this schedule"
