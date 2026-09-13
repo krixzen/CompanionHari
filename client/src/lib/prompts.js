@@ -249,6 +249,7 @@ Make it realistic and thoughtful, not a cram session:
 - The same goes within one topic: don't chain every one of its sub-topics back-to-back in a single stretch. Spread them across different days where you can, so the same material comes back after a gap rather than all at once.
 - Spread sittings across the whole date range instead of front-loading a single day — not everything needs to fit in this one stretch, and a lighter day here and there is fine.
 - Schedule only the first sitting for each sub-topic. This app books that sitting's own revision follow-ups (a day later, three days later, a week later) automatically the moment it is saved — you do not need to add revision blocks yourself, and doing so would only double them up.
+- Where it genuinely helps — a problem-solving subject like maths or physics, or a sub-topic that is more about applying a method than remembering facts — add a separate practice sitting a few days after the study sitting, working questions on it rather than meeting it for the first time. Mark it with "session_type": "practice" (the study sitting itself needs no "session_type", or "study" if you'd rather be explicit). Not every sub-topic needs one; use judgement.
 
 Reply with JSON only. No explanation before or after it, and no markdown code fence.
 

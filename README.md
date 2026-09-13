@@ -305,10 +305,15 @@ becomes four rows. Editing an existing one just moves that one row to a
 different single week.
 
 ### The week calendar
-**Week** shows seven columns with the hours down the side. Commitments sit
-behind everything as soft washes; study blocks are cards in their subject's
-colour; revision blocks are outlined and marked with ↻. On a phone it becomes
-one day at a time with a row of day chips.
+**Week** shows seven columns with the hours down the side, or switch to
+**Day** (next to Previous/This week/Next) for one day at a time with a row
+of day chips to jump between them — a phone is always in Day view, since a
+week of columns has nowhere to go on a small screen. Commitments sit behind
+everything as soft washes; blocks show just their subject and time, kept
+deliberately plain so the calendar reads at a glance — tap one for the full
+picture (topic, sub-topic, notes, tick-off). Study blocks are solid cards in
+their subject's colour; revision blocks are outlined and marked with ↻;
+practice blocks are dotted and marked with ✎.
 
 - **Drag a block** to another day or time. Dropping snaps to the nearest five
   minutes.
@@ -317,6 +322,21 @@ one day at a time with a row of day chips.
   off the calendar.
 - Ticking a study block off moves its topic to *Learning*; ticking a revision
   block off moves it to *Revised*.
+
+### Study, practice, and revision
+A block on the calendar is one of three kinds:
+- **Study** — meeting a sub-topic for the first time.
+- **Practice** — working problems on something already studied, rather than
+  learning it fresh. Never booked automatically; the AI-scheduling prompt
+  proposes one where it judges it would help (a problem-solving subject, a
+  method-heavy sub-topic), a few days after the study sitting.
+- **Revision** — the short, spaced follow-ups (1 day / 3 days / 1 week) this
+  app books automatically after every study block, to make it stick.
+
+Confirming a block is done is the same tap-and-tick as always; what actually
+happened on a given day is always visible afterwards on **Progress**, which
+can be filtered down to a single day (recording is a daily thing, so being
+able to look at one day is often more useful than a whole month's chart).
 
 ### Plan my week
 One button fills the week's free time. It works in a deliberately predictable
@@ -388,6 +408,13 @@ topic on by hand — its revision chain is booked automatically the same way.
 (Plan my week still books a topic as one whole block; only the assistant
 prompt currently schedules sub-topic by sub-topic.)
 
+Where it judges a sub-topic would benefit from it — a problem-solving
+subject, a method rather than a fact — the assistant can also propose a
+**practice** sitting a few days after the study one, working questions
+rather than meeting the material fresh. The review list lets you change any
+block between Study and Practice before saving, or leave either out
+entirely.
+
 ### Revision, booked automatically
 Every study block gets three short revision blocks after it — the next day,
 three days later and a week later. A revision block is about a third of the
@@ -421,6 +448,20 @@ Phase 2 adds:
   week — see `templateService.resolveEffectiveAnchors`, the one place that
   turns "which pattern governs which week" back into the flat, date-scoped
   shape the scheduler already understood before templates existed.
+- `plan_entry.entry_type` widened to add `practice` alongside `study` and
+  `revision`.
+
+Widening `entry_type`'s CHECK constraint needed a full table rebuild — the
+same drop-and-recreate approach the `anchor.type` and `week_assignment`
+migrations use — but `plan_entry` is both self-referential
+(`parent_entry_id`) and referenced by `study_session`. SQLite treats
+`DROP TABLE` as deleting every row for foreign-key purposes, which can
+CASCADE or SET NULL into any table that references it by name — including a
+freshly-copied replacement table that references it by that same name,
+before the rename. The migration runner now disables foreign keys around
+each migration's transaction (they can't be toggled inside one) and runs
+`PRAGMA foreign_key_check` afterwards, exactly as SQLite's own documented
+procedure for this kind of rebuild recommends.
 
 ---
 

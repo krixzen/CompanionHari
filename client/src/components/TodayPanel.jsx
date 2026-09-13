@@ -118,7 +118,7 @@ export function TodayPanel({ onChanged }) {
                 </span>
                 <span className="block truncate text-xs text-ink-faint">
                   {entry.tracking_label ?? entry.tracking_number}
-                  {entry.entry_type === 'revision' ? ' · revision' : ''} ·{' '}
+                  {entry.entry_type !== 'study' ? ` · ${entry.entry_type}` : ''} ·{' '}
                   {formatMinutes(entry.scheduled_duration_minutes)}
                 </span>
               </span>

@@ -1,4 +1,4 @@
-import { Button, Card, TextInput } from './ui.jsx';
+import { Button, Card, Select, TextInput } from './ui.jsx';
 import { SubjectDot } from './bits.jsx';
 import { formatMinutes } from '../lib/format.js';
 import { longDate } from '../lib/week.js';
@@ -69,6 +69,15 @@ export function ScheduleReview({ rows, onChange, onSave, onDismiss, saving }) {
                   {longDate(row.scheduled_date)}
                 </p>
               </div>
+              <Select
+                value={row.entry_type}
+                onChange={(event) => update(row.key, { entry_type: event.target.value })}
+                style={{ width: 'auto' }}
+                aria-label={`Kind of block for ${row.tracking_number}`}
+              >
+                <option value="study">Study</option>
+                <option value="practice">Practice</option>
+              </Select>
               <TextInput
                 type="date"
                 value={row.scheduled_date}

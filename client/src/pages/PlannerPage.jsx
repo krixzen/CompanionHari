@@ -52,6 +52,7 @@ export default function PlannerPage() {
   const today = todayIso();
   const [monday, setMonday] = useState(() => startOfWeek(today));
   const [selectedDay, setSelectedDay] = useState(today);
+  const [viewMode, setViewMode] = useState('week'); // 'week' | 'day' — a phone is always 'day' regardless
 
   const isNarrow = useMediaQuery('(max-width: 767px)');
   const { refreshSubjects } = useStudyData();
@@ -116,7 +117,8 @@ export default function PlannerPage() {
   }, [monday, scheduleTo]);
 
   const dates = useMemo(() => weekDates(monday), [monday]);
-  const visibleDates = isNarrow ? [selectedDay] : dates;
+  const showingOneDay = isNarrow || viewMode === 'day';
+  const visibleDates = showingOneDay ? [selectedDay] : dates;
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -125,11 +127,11 @@ export default function PlannerPage() {
   );
 
   const totals = useMemo(() => {
-    const study = entries.filter((entry) => entry.entry_type === 'study');
-    const revision = entries.filter((entry) => entry.entry_type === 'revision');
+    const countOf = (type) => entries.filter((entry) => entry.entry_type === type).length;
     return {
-      study: study.length,
-      revision: revision.length,
+      study: countOf('study'),
+      practice: countOf('practice'),
+      revision: countOf('revision'),
       minutes: entries.reduce((sum, entry) => sum + entry.scheduled_duration_minutes, 0),
       done: entries.filter((entry) => entry.completed).length,
     };
@@ -238,6 +240,7 @@ export default function PlannerPage() {
         sub_topic_index: inRange ? subTopicIndex : null,
         sub_topic_title: topic && subTopicIndex !== null ? topic.sub_topics[subTopicIndex] : null,
         include: Boolean(topic),
+        entry_type: entry.session_type === 'practice' ? 'practice' : 'study',
         scheduled_date: entry.date,
         scheduled_start_time: entry.start_time,
         scheduled_duration_minutes: entry.duration_minutes,
@@ -262,6 +265,7 @@ export default function PlannerPage() {
           scheduled_start_time: row.scheduled_start_time,
           scheduled_duration_minutes: Number(row.scheduled_duration_minutes),
           sub_topic_index: row.sub_topic_index,
+          entry_type: row.entry_type,
         });
       } catch {
         failed += 1;
@@ -355,13 +359,15 @@ export default function PlannerPage() {
         eyebrow="Your week"
         title={describeWeek(monday)}
         description={
-          totals.study + totals.revision === 0
+          totals.study + totals.practice + totals.revision === 0
             ? 'Nothing booked in yet. Plan the week and you can move anything afterwards.'
-            : `${totals.study} study block${totals.study === 1 ? '' : 's'} and ${
-                totals.revision
-              } revision block${totals.revision === 1 ? '' : 's'} · ${formatMinutes(
-                totals.minutes
-              )} in total${totals.done ? ` · ${totals.done} done already` : ''}`
+            : `${totals.study} study block${totals.study === 1 ? '' : 's'}${
+                totals.practice ? `, ${totals.practice} practice block${totals.practice === 1 ? '' : 's'}` : ''
+              } and ${totals.revision} revision block${
+                totals.revision === 1 ? '' : 's'
+              } · ${formatMinutes(totals.minutes)} in total${
+                totals.done ? ` · ${totals.done} done already` : ''
+              }`
         }
         actions={
           <>
@@ -402,6 +408,30 @@ export default function PlannerPage() {
         <Button size="sm" onClick={() => goToWeek(addDays(monday, 7))}>
           Next ›
         </Button>
+        {!isNarrow && (
+          <div className="flex gap-1 rounded-full bg-paper-sunk p-0.5" role="group" aria-label="Week or day view">
+            <button
+              type="button"
+              onClick={() => setViewMode('week')}
+              aria-pressed={viewMode === 'week'}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                viewMode === 'week' ? 'bg-sage-600 text-white' : 'text-ink-soft hover:bg-sage-100'
+              }`}
+            >
+              Week
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('day')}
+              aria-pressed={viewMode === 'day'}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                viewMode === 'day' ? 'bg-sage-600 text-white' : 'text-ink-soft hover:bg-sage-100'
+              }`}
+            >
+              Day
+            </button>
+          </div>
+        )}
         <Button size="sm" variant="ghost" onClick={() => setClearOpen(true)} className="ml-auto">
           Clear unfinished
         </Button>
@@ -420,7 +450,7 @@ export default function PlannerPage() {
         </Card>
       )}
 
-      {isNarrow && (
+      {showingOneDay && (
         <div className="mb-3 flex gap-1 overflow-x-auto pb-1">
           {dates.map((date) => (
             <button

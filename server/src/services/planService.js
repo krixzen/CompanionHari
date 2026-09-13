@@ -179,7 +179,7 @@ export function createPlanEntry(studentId, input) {
   const topic = ownsTopic(studentId, topicId);
   if (!topic) throw notFound('That topic no longer exists.');
 
-  const entryType = input.entry_type === 'revision' ? 'revision' : 'study';
+  const entryType = ['revision', 'practice'].includes(input.entry_type) ? input.entry_type : 'study';
   const slot = validateSlot(input);
   const subTopicIndex = readSubTopicIndex(topic, input.sub_topic_index);
   const settings = getPlannerSettings();
