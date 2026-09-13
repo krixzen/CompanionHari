@@ -15,19 +15,31 @@ import { getPlannerSettings } from './settingsService.js';
 const ENTRY_SELECT = `
   SELECT
     p.*,
-    t.tracking_number, t.title AS topic_title, t.difficulty, t.status AS topic_status,
+    t.tracking_number, t.title AS topic_title, t.sub_topics, t.difficulty, t.status AS topic_status,
     s.id AS subject_id, s.name AS subject_name, s.colour AS subject_colour, s.code AS subject_code
   FROM plan_entry p
   JOIN topic t   ON t.id = p.topic_id
   JOIN subject s ON s.id = t.subject_id
 `;
 
-const toEntry = (row) =>
-  row && {
+const toEntry = (row) => {
+  if (!row) return row;
+  const subTopics = JSON.parse(row.sub_topics ?? '[]');
+  const subTopicTitle =
+    row.sub_topic_index != null ? subTopics[row.sub_topic_index] ?? null : null;
+
+  return {
     ...row,
+    sub_topics: undefined,
     completed: Boolean(row.completed),
     scheduled_end_time: toTime(toMinutes(row.scheduled_start_time) + row.scheduled_duration_minutes),
+    sub_topic_title: subTopicTitle,
+    tracking_label:
+      row.sub_topic_index != null
+        ? `${row.tracking_number}/${String(row.sub_topic_index + 1).padStart(2, '0')}`
+        : row.tracking_number,
   };
+};
 
 export function listPlanEntries(studentId, from, to) {
   if (!isIsoDate(from) || !isIsoDate(to)) throw badRequest('Dates should look like 2026-09-14.');
@@ -53,10 +65,21 @@ export function getPlanEntry(studentId, entryId) {
 const ownsTopic = (studentId, topicId) =>
   getDb()
     .prepare(
-      `SELECT t.id FROM topic t JOIN subject s ON s.id = t.subject_id
+      `SELECT t.id, t.sub_topics FROM topic t JOIN subject s ON s.id = t.subject_id
        WHERE t.id = ? AND s.student_id = ?`
     )
     .get(topicId, studentId);
+
+/** Validates a sub-topic index against the topic it belongs to, or returns null. */
+function readSubTopicIndex(topic, value) {
+  if (value === undefined || value === null) return null;
+  const index = Number(value);
+  const subTopics = JSON.parse(topic.sub_topics ?? '[]');
+  if (!Number.isInteger(index) || index < 0 || index >= subTopics.length) {
+    throw badRequest('That sub-topic does not exist on this topic.');
+  }
+  return index;
+}
 
 function validateSlot({ scheduled_date: date, scheduled_start_time: start, scheduled_duration_minutes: minutes }) {
   if (!isIsoDate(date)) throw badRequest('The date should look like 2026-09-14.');
@@ -79,8 +102,8 @@ const insertEntry = (db) =>
   db.prepare(
     `INSERT INTO plan_entry
        (topic_id, scheduled_date, scheduled_start_time, scheduled_duration_minutes,
-        entry_type, revision_interval, parent_entry_id)
-     VALUES (@topic_id, @date, @start, @duration, @entry_type, @revision_interval, @parent_entry_id)`
+        entry_type, revision_interval, parent_entry_id, sub_topic_index)
+     VALUES (@topic_id, @date, @start, @duration, @entry_type, @revision_interval, @parent_entry_id, @sub_topic_index)`
   );
 
 /**
@@ -139,6 +162,7 @@ function placeRevisions(studentId, studyEntries, settings) {
         entry_type: 'revision',
         revision_interval: offset.interval,
         parent_entry_id: study.id,
+        sub_topic_index: study.sub_topic_index ?? null,
       });
       created.push(Number(info.lastInsertRowid));
     }
@@ -152,10 +176,12 @@ export function createPlanEntry(studentId, input) {
   const db = getDb();
   const topicId = Number(input.topic_id);
 
-  if (!ownsTopic(studentId, topicId)) throw notFound('That topic no longer exists.');
+  const topic = ownsTopic(studentId, topicId);
+  if (!topic) throw notFound('That topic no longer exists.');
 
   const entryType = input.entry_type === 'revision' ? 'revision' : 'study';
   const slot = validateSlot(input);
+  const subTopicIndex = readSubTopicIndex(topic, input.sub_topic_index);
   const settings = getPlannerSettings();
 
   const run = db.transaction(() => {
@@ -167,6 +193,7 @@ export function createPlanEntry(studentId, input) {
       entry_type: entryType,
       revision_interval: entryType === 'revision' ? input.revision_interval ?? null : null,
       parent_entry_id: null,
+      sub_topic_index: subTopicIndex,
     });
 
     const entry = getPlanEntry(studentId, Number(info.lastInsertRowid));
@@ -306,7 +333,7 @@ export function suggestStudySlot(studentId, topicId, { minutes, from, days = 7 }
 export function listUnscheduledTopics(studentId) {
   return getDb()
     .prepare(
-      `SELECT t.id, t.tracking_number, t.title, t.allocated_duration_minutes, t.difficulty,
+      `SELECT t.id, t.tracking_number, t.title, t.sub_topics, t.allocated_duration_minutes, t.difficulty,
               t.target_date, t.status,
               s.name AS subject_name, s.colour AS subject_colour, s.code AS subject_code
        FROM topic t
@@ -319,7 +346,8 @@ export function listUnscheduledTopics(studentId) {
          )
        ORDER BY (t.target_date IS NULL), t.target_date, s.display_order, t.display_order, t.id`
     )
-    .all(studentId);
+    .all(studentId)
+    .map((topic) => ({ ...topic, sub_topics: JSON.parse(topic.sub_topics ?? '[]') }));
 }
 
 /**
@@ -380,6 +408,7 @@ export function autoPlan(studentId, from, to) {
         entry_type: 'study',
         revision_interval: null,
         parent_entry_id: null,
+        sub_topic_index: null,
       });
       return getPlanEntry(studentId, Number(info.lastInsertRowid));
     });

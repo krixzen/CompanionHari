@@ -101,7 +101,9 @@ export function TodayPanel({ onChanged }) {
                 checked={entry.completed}
                 disabled={busyId === entry.id}
                 onChange={() => (entry.completed ? untick(entry) : setLogging(entry))}
-                aria-label={`${entry.completed ? 'Undo' : 'Record'} ${entry.topic_title}`}
+                aria-label={`${entry.completed ? 'Undo' : 'Record'} ${
+                  entry.sub_topic_title ?? entry.topic_title
+                }`}
                 className="h-5 w-5 shrink-0 rounded border-black/20 text-sage-600 focus:ring-sage-400"
               />
               <span className="w-20 shrink-0 text-xs text-ink-faint">
@@ -112,10 +114,10 @@ export function TodayPanel({ onChanged }) {
                 <span
                   className={`block truncate text-sm text-ink ${entry.completed ? 'line-through' : ''}`}
                 >
-                  {entry.topic_title}
+                  {entry.sub_topic_title ?? entry.topic_title}
                 </span>
                 <span className="block truncate text-xs text-ink-faint">
-                  {entry.tracking_number}
+                  {entry.tracking_label ?? entry.tracking_number}
                   {entry.entry_type === 'revision' ? ' · revision' : ''} ·{' '}
                   {formatMinutes(entry.scheduled_duration_minutes)}
                 </span>

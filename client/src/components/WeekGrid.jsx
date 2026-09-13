@@ -94,9 +94,11 @@ function EntryBlock({ entry, window, onOpen, compact }) {
       onKeyDown={(event) => {
         if (event.key === 'Enter') onOpen(entry);
       }}
-      aria-label={`${entry.tracking_number} ${entry.topic_title}, ${friendlyTime(
-        entry.scheduled_start_time
-      )} to ${friendlyTime(entry.scheduled_end_time)}${entry.completed ? ', done' : ''}`}
+      aria-label={`${entry.tracking_label ?? entry.tracking_number} ${
+        entry.sub_topic_title ?? entry.topic_title
+      }, ${friendlyTime(entry.scheduled_start_time)} to ${friendlyTime(entry.scheduled_end_time)}${
+        entry.completed ? ', done' : ''
+      }`}
       className={`absolute inset-x-0.5 cursor-grab touch-none overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-left shadow-sm transition active:cursor-grabbing ${
         isRevision ? 'border-dashed bg-paper-raised/90' : ''
       } ${entry.completed ? 'opacity-55' : ''} ${isDragging ? 'shadow-soft ring-2 ring-sage-300' : ''}`}
@@ -112,10 +114,12 @@ function EntryBlock({ entry, window, onOpen, compact }) {
             ↻{' '}
           </span>
         )}
-        {entry.tracking_number}
+        {entry.tracking_label ?? entry.tracking_number}
       </p>
       {height > 30 && (
-        <p className="truncate text-[11px] leading-tight text-ink">{entry.topic_title}</p>
+        <p className="truncate text-[11px] leading-tight text-ink">
+          {entry.sub_topic_title ?? entry.topic_title}
+        </p>
       )}
       {height > 46 && !compact && (
         <p className="truncate text-[10px] leading-tight text-ink-faint">

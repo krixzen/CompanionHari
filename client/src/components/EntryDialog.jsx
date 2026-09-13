@@ -45,8 +45,12 @@ export function EntryDialog({ entry, open, onClose, onSave, onDelete, onRequestL
     <Modal
       open={open}
       onClose={onClose}
-      title={entry.topic_title}
-      description={`${entry.tracking_number} · ${entry.subject_name}`}
+      title={entry.sub_topic_title ?? entry.topic_title}
+      description={
+        entry.sub_topic_title
+          ? `${entry.tracking_label} · ${entry.topic_title} · ${entry.subject_name}`
+          : `${entry.tracking_number} · ${entry.subject_name}`
+      }
       footer={
         <>
           <Button variant="ghost" onClick={() => run(() => onDelete(entry))} disabled={working}>

@@ -184,15 +184,22 @@ export function schedulePlanPrompt({ from, to, anchors, topics, existingEntries,
       ),
     ...existingEntries.map(
       (entry) =>
-        `- ${entry.scheduled_date}, ${entry.scheduled_start_time}–${entry.scheduled_end_time}: ${entry.tracking_number} ${entry.topic_title} (already on the calendar)`
+        `- ${entry.scheduled_date}, ${entry.scheduled_start_time}–${entry.scheduled_end_time}: ${entry.tracking_label ?? entry.tracking_number} ${entry.sub_topic_title ?? entry.topic_title} (already on the calendar)`
     ),
   ].join('\n');
 
   const topicLines = topics
-    .map(
-      (topic) =>
-        `- ${topic.tracking_number} ${topic.title} (${topic.subject_name}) — needs about ${topic.allocated_duration_minutes} minutes, difficulty ${topic.difficulty}/5${topic.target_date ? `, due ${topic.target_date}` : ''}`
-    )
+    .map((topic) => {
+      const header = `- ${topic.tracking_number} ${topic.title} (${topic.subject_name}) — about ${topic.allocated_duration_minutes} minutes in total, difficulty ${topic.difficulty}/5${topic.target_date ? `, due ${topic.target_date}` : ''}`;
+      if (!topic.sub_topics?.length) return header;
+      const subLines = topic.sub_topics
+        .map(
+          (subTopic, index) =>
+            `    - ${topic.tracking_number}/${String(index + 1).padStart(2, '0')}: ${subTopic}`
+        )
+        .join('\n');
+      return `${header}\n${subLines}`;
+    })
     .join('\n');
 
   return `You are building a study timetable for a school student, from ${from} to ${to} inclusive.
@@ -206,10 +213,10 @@ Rules for the day:
 Busy time — fixed commitments and anything already booked:
 ${busyLines || '(nothing fixed recorded yet)'}
 
-Topics waiting for a place on the calendar:
+Topics waiting for a place on the calendar, with their sub-topics listed underneath where there are any:
 ${topicLines || '(nothing waiting — every topic already has a slot)'}
 
-Build a realistic, humane timetable — not every topic needs to fit in this one stretch, and a lighter day here and there is fine. For each block you schedule, use the topic's own tracking number so it can be matched back to the right topic; do not invent a tracking number that is not listed above.
+Schedule sub-topic by sub-topic wherever a topic has them listed, rather than booking the whole topic as one sitting — split its total minutes across its sub-topics however makes sense (a harder one can take longer than an easier one), and give each its own block using its own number, e.g. "PHY-001/01", "PHY-001/02". Only use the plain topic number, with no "/NN", for a topic that has no sub-topics listed. Build a realistic, humane timetable — not everything needs to fit in this one stretch, and a lighter day here and there is fine. Do not invent a number that is not listed above.
 
 Reply with JSON only. No explanation before or after it, and no markdown code fence.
 

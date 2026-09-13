@@ -62,9 +62,12 @@ export function ScheduleReview({ rows, onChange, onSave, onDismiss, saving }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-ink">
                   <span className="mr-1.5 font-mono text-xs text-ink-faint">{row.tracking_number}</span>
-                  {row.topic.title}
+                  {row.sub_topic_title ?? row.topic.title}
                 </p>
-                <p className="text-xs text-ink-faint">{longDate(row.scheduled_date)}</p>
+                <p className="text-xs text-ink-faint">
+                  {row.sub_topic_title && <span className="mr-1.5">{row.topic.title} ·</span>}
+                  {longDate(row.scheduled_date)}
+                </p>
               </div>
               <TextInput
                 type="date"

@@ -172,15 +172,29 @@ export default function PlannerPage() {
     }
   };
 
-  /** Resolves the assistant's tracking numbers against topics actually waiting for a slot. */
+  /**
+   * Resolves the assistant's tracking numbers against topics actually waiting
+   * for a slot. A number ending in "/NN" (e.g. "PHY-001/02") names one
+   * sub-topic rather than the whole thing — anything else is treated as
+   * unresolved, the same as a tracking number that does not exist at all.
+   */
   const resolveScheduleDraft = (data) => {
     let key = 0;
     return data.entries.map((entry) => {
-      const topic = unscheduled.find((candidate) => candidate.tracking_number === entry.tracking_number);
+      const match = entry.tracking_number.match(/^(.*)\/(\d{1,2})$/);
+      const baseNumber = match ? match[1] : entry.tracking_number;
+      const subTopicIndex = match ? Number(match[2]) - 1 : null;
+
+      const baseTopic = unscheduled.find((candidate) => candidate.tracking_number === baseNumber);
+      const inRange = subTopicIndex === null || (baseTopic && subTopicIndex < baseTopic.sub_topics.length);
+      const topic = inRange ? baseTopic : undefined;
+
       return {
         key: `sched-${(key += 1)}`,
         tracking_number: entry.tracking_number,
         topic,
+        sub_topic_index: inRange ? subTopicIndex : null,
+        sub_topic_title: topic && subTopicIndex !== null ? topic.sub_topics[subTopicIndex] : null,
         include: Boolean(topic),
         scheduled_date: entry.date,
         scheduled_start_time: entry.start_time,
@@ -205,6 +219,7 @@ export default function PlannerPage() {
           scheduled_date: row.scheduled_date,
           scheduled_start_time: row.scheduled_start_time,
           scheduled_duration_minutes: Number(row.scheduled_duration_minutes),
+          sub_topic_index: row.sub_topic_index,
         });
       } catch {
         failed += 1;
