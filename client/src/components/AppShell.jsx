@@ -1,7 +1,7 @@
 import { NavLink, Link } from 'react-router-dom';
 
 const linkClasses = ({ isActive }) =>
-  `rounded-full px-3 py-1.5 text-sm font-medium transition ${
+  `rounded-full px-2.5 py-1.5 text-sm font-medium transition sm:px-3 ${
     isActive ? 'bg-sage-100 text-sage-800' : 'text-ink-soft hover:bg-paper-sunk hover:text-ink'
   }`;
 
@@ -9,14 +9,19 @@ export function AppShell({ children }) {
   return (
     <div className="min-h-screen bg-paper">
       <header className="sticky top-0 z-30 border-b border-black/5 bg-paper/85 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-6">
           <Link to="/" className="flex items-center gap-2 text-ink">
             <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-sage-500" />
-            <span className="text-sm font-semibold tracking-tight">Study Planner</span>
+            <span className="whitespace-nowrap text-sm font-semibold tracking-tight">
+              Study Planner
+            </span>
           </Link>
           <nav className="flex items-center gap-1">
             <NavLink to="/" end className={linkClasses}>
               Home
+            </NavLink>
+            <NavLink to="/planner" className={linkClasses}>
+              Week
             </NavLink>
             <NavLink to="/subjects" className={linkClasses}>
               Subjects

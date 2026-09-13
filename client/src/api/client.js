@@ -68,6 +68,32 @@ export const api = {
       request('/topics/bulk', { method: 'PATCH', body: { ids, changes } }).then((r) => r.topics),
   },
 
+  anchors: {
+    list: () => request('/anchors').then((r) => r.anchors),
+    create: (anchor) => request('/anchors', { method: 'POST', body: anchor }).then((r) => r.anchor),
+    update: (id, changes) =>
+      request(`/anchors/${id}`, { method: 'PATCH', body: changes }).then((r) => r.anchor),
+    remove: (id) => request(`/anchors/${id}`, { method: 'DELETE' }),
+    starterWeek: () => request('/anchors/starter-week', { method: 'POST' }).then((r) => r.anchors),
+  },
+
+  plan: {
+    list: (from, to) => request(`/plan${query({ from, to })}`).then((r) => r.entries),
+    unscheduled: () => request('/plan/unscheduled').then((r) => r.topics),
+    create: (entry) => request('/plan', { method: 'POST', body: entry }),
+    update: (id, changes) => request(`/plan/${id}`, { method: 'PATCH', body: changes }),
+    remove: (id) => request(`/plan/${id}`, { method: 'DELETE' }),
+    auto: (from, to) => request('/plan/auto', { method: 'POST', body: { from, to } }),
+    clear: (from, to, includeCompleted = false) =>
+      request('/plan/clear', { method: 'POST', body: { from, to, includeCompleted } }),
+  },
+
+  settings: {
+    planner: () => request('/settings/planner').then((r) => r.settings),
+    savePlanner: (changes) =>
+      request('/settings/planner', { method: 'PATCH', body: changes }).then((r) => r.settings),
+  },
+
   syllabus: {
     /** Accepts either a File or already-extracted text, plus parser options. */
     parse: ({ file, text, unitHandling, splitColonLists }) => {

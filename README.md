@@ -95,8 +95,10 @@ is never uploaded anywhere.
 study-planner/
 ├── client/                  the part you see in the browser
 │   └── src/
-│       ├── pages/           one file per screen (home, subjects, topics, import)
-│       ├── components/      reusable pieces — the LLM Bridge lives here
+│       ├── pages/           one file per screen (home, week, commitments,
+│       │                    subjects, topics, syllabus import)
+│       ├── components/      reusable pieces — the week grid and the
+│       │                    LLM Bridge live here
 │       ├── hooks/           shared behaviour (loaded data, notes, toasts)
 │       ├── api/             how the screens talk to the server
 │       └── lib/             prompts, schemas, the JSON checker, formatting
@@ -105,7 +107,9 @@ study-planner/
     ├── data/                your database file lives here
     └── src/
         ├── routes/          the web addresses the app responds to
-        ├── services/        the thinking: syllabus reading, tracking numbers
+        ├── services/        the thinking: syllabus reading, tracking numbers,
+        │                    the week planner and its scheduling arithmetic
+        ├── lib/             small shared helpers (dates, times, validation)
         └── db/              database connection, seed data, schema history
             └── migrations/  numbered .sql files that build the schema
 ```
@@ -113,6 +117,71 @@ study-planner/
 ---
 
 ## What this phase does
+
+**Phase 2 — Timetable with anchors and calendar.**
+
+### Fixed commitments
+Under **Week → Set up your week** (or `/anchors`) you list the things that are
+not up for negotiation: school, coaching, sport, meals, family time, sleep.
+Start from a typical school week and edit it, or build your own. Each one can
+be paused for a term without deleting it. The planner treats every active
+commitment as time it may not touch.
+
+Anything running past midnight goes in as two commitments — one up to 23:59
+and one from 00:00 — so a block always has an end time later than its start.
+
+### The week calendar
+**Week** shows seven columns with the hours down the side. Commitments sit
+behind everything as soft washes; study blocks are cards in their subject's
+colour; revision blocks are outlined and marked with ↻. On a phone it becomes
+one day at a time with a row of day chips.
+
+- **Drag a block** to another day or time. Dropping snaps to the nearest five
+  minutes.
+- **Drag a topic** from *Waiting for a slot* straight onto a day.
+- **Tap a block** to change its day, time or length, tick it off, or take it
+  off the calendar.
+- Ticking a study block off moves its topic to *Learning*; ticking a revision
+  block off moves it to *Revised*.
+
+### Plan my week
+One button fills the week's free time. It works in a deliberately predictable
+order, so you can always see why it chose what it chose:
+
+1. topics with a target date, soonest first;
+2. then everything else in the order you arranged it, subject by subject.
+
+Each topic goes into the earliest gap on the earliest day that it actually
+fits, leaving the break you asked for between blocks. Topics that will not fit
+are never dropped silently — they stay in the waiting list and the app says why
+in plain English ("every day in this stretch is already at its 4-hour limit").
+
+Days that have already gone by are left alone, and so are the hours earlier
+today.
+
+### Revision, booked automatically
+Every study block gets three short revision blocks after it — the next day,
+three days later and a week later. A revision block is about a third of the
+length of the session it follows, kept between the shortest and longest you
+allow. Move a study block to another day and its unfinished revisions move
+with it; delete it and they go too.
+
+### Planner settings
+Under **Planner settings**: the earliest and latest the day may run, the break
+between blocks, the most study in one day, and whether revision is booked at
+all. The daily limit counts revision as well as study, and a quarter of it is
+held back for revision so that adding the follow-up blocks cannot push a day
+past its limit.
+
+### More on the data model
+Phase 2 adds one column and one table:
+
+- `plan_entry.parent_entry_id` — ties a revision block to the study block that
+  created it, so moving or deleting one carries the other along.
+- `setting` — a small key/value store, used for the planner's preferences.
+  Later phases can add their own keys without another migration.
+
+---
 
 **Phase 1 — Foundation, syllabus and topics.**
 
@@ -207,6 +276,11 @@ start. Look in the terminal for a red error message just above.
 **A PDF imports as nonsense, or not at all** — it is probably a scan or a
 photograph, which has no text inside it to read. Copy the syllabus text from
 wherever you can and use the paste box instead.
+
+**The planner put nothing in, or very little** — it usually means the days are
+already full. Check *Planner settings*: the day may be too short, the daily
+limit too low, or your commitments may be covering more of the week than you
+meant. The list under the calendar says which topics did not fit and why.
 
 **The syllabus split into the wrong things** — change *Units and chapters* on
 the review screen, or fix it by hand there. Nothing is saved until you press

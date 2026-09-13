@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../components/AppShell.jsx';
 import { ProgressBar, SubjectDot } from '../components/bits.jsx';
+import { TodayPanel } from '../components/TodayPanel.jsx';
 import { Button, Card, ErrorNote, Field, Spinner, TextInput } from '../components/ui.jsx';
 import { useStudyData } from '../hooks/useStudyData.jsx';
 import { useToast } from '../hooks/useToast.jsx';
 import { formatMinutes, greeting, progressMessage } from '../lib/format.js';
 
 export default function HomePage() {
-  const { student, subjects, status, error, reload } = useStudyData();
+  const { student, subjects, status, error, reload, refreshSubjects } = useStudyData();
 
   if (status === 'loading') return <Spinner label="Getting your things together…" />;
   if (status === 'error') return <ErrorNote onRetry={reload}>{error}</ErrorNote>;
@@ -50,6 +51,8 @@ export default function HomePage() {
           </div>
         </Card>
       )}
+
+      <TodayPanel onChanged={refreshSubjects} />
 
       <section>
         <div className="mb-3 flex items-end justify-between">
