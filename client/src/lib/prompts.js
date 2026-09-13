@@ -251,6 +251,8 @@ Make it realistic and thoughtful, not a cram session:
 - Schedule only the first sitting for each sub-topic. This app books that sitting's own revision follow-ups (a day later, three days later, a week later) automatically the moment it is saved — you do not need to add revision blocks yourself, and doing so would only double them up.
 - Where it genuinely helps — a problem-solving subject like maths or physics, or a sub-topic that is more about applying a method than remembering facts — add a separate practice sitting a few days after the study sitting, working questions on it rather than meeting it for the first time. Mark it with "session_type": "practice" (the study sitting itself needs no "session_type", or "study" if you'd rather be explicit). Not every sub-topic needs one; use judgement.
 
+Lunch and dinner are not fixed commitments here — you decide when they happen each day, fitting them around everything else and giving each a sensible length (roughly 30–45 minutes). List one lunch and one dinner for every day in this stretch in a separate top-level "meals" array (not "entries", since they are not study blocks), each with "date", "label" ("Lunch" or "Dinner"), "start_time" and "end_time".
+
 Reply with JSON only. No explanation before or after it, and no markdown code fence.
 
 The JSON must match this schema:

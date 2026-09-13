@@ -129,7 +129,7 @@ export const schedulePlanSchema = {
   properties: {
     entries: {
       type: 'array',
-      minItems: 1,
+      minItems: 0,
       maxItems: 200,
       items: {
         type: 'object',
@@ -141,6 +141,20 @@ export const schedulePlanSchema = {
           duration_minutes: { type: 'integer', minimum: 5, maximum: 480 },
           session_type: { type: 'string', enum: ['study', 'practice'] },
           note: { type: ['string', 'null'], maxLength: 200 },
+        },
+      },
+    },
+    meals: {
+      type: 'array',
+      maxItems: 40,
+      items: {
+        type: 'object',
+        required: ['date', 'label', 'start_time', 'end_time'],
+        properties: {
+          date: { type: 'string', minLength: 10, maxLength: 10 },
+          label: { type: 'string', maxLength: 40 },
+          start_time: { type: 'string', minLength: 4, maxLength: 5 },
+          end_time: { type: 'string', minLength: 4, maxLength: 5 },
         },
       },
     },

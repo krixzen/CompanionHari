@@ -16,6 +16,7 @@ import { EntryDialog } from '../components/EntryDialog.jsx';
 import { LLMBridge } from '../components/LLMBridge.jsx';
 import { PlannerSettingsDialog } from '../components/PlannerSettingsDialog.jsx';
 import { RevisionSuggestion, SessionDialog } from '../components/SessionDialog.jsx';
+import { MealsReview } from '../components/MealsReview.jsx';
 import { ScheduleReview } from '../components/ScheduleReview.jsx';
 import { UnscheduledPanel } from '../components/UnscheduledPanel.jsx';
 import { PX_PER_MINUTE, WeekGrid, gridWindow } from '../components/WeekGrid.jsx';
@@ -82,6 +83,8 @@ export default function PlannerPage() {
   const [scheduleBridgeOpen, setScheduleBridgeOpen] = useState(false);
   const [scheduleDraft, setScheduleDraft] = useState(null); // rows awaiting review, or null when closed
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [mealDraft, setMealDraft] = useState(null); // meal-time rows awaiting review, or null when closed
+  const [savingMeals, setSavingMeals] = useState(false);
 
   // Which stretch "Ask Claude or ChatGPT to plan it" should cover — the
   // visible week by default, or further out when replanning a bigger chunk
@@ -282,6 +285,54 @@ export default function PlannerPage() {
     }
     if (failed > 0) {
       toast.warn(`${failed} block${failed === 1 ? '' : 's'} could not be placed — check for a clash and try again.`);
+    }
+  };
+
+  /** Meal times the assistant proposed — not tied to any topic, so they become one-off extras. */
+  const resolveMealDraft = (data) => {
+    let key = 0;
+    return (data.meals ?? []).map((meal) => ({
+      key: `meal-${(key += 1)}`,
+      label: meal.label,
+      scheduled_date: meal.date,
+      start_time: meal.start_time,
+      end_time: meal.end_time,
+      include: true,
+    }));
+  };
+
+  const saveMeals = async (rows) => {
+    const chosen = rows.filter((row) => row.include);
+    if (chosen.length === 0) {
+      setMealDraft(null);
+      return;
+    }
+
+    setSavingMeals(true);
+    let failed = 0;
+    for (const row of chosen) {
+      try {
+        await api.anchors.create({
+          label: row.label.trim() || 'Meal',
+          type: 'meal',
+          day_of_week: dayOfWeek(row.scheduled_date),
+          start_time: row.start_time,
+          end_time: row.end_time,
+          effective_from: row.scheduled_date,
+          effective_until: row.scheduled_date,
+        });
+      } catch {
+        failed += 1;
+      }
+    }
+    await refresh();
+    setSavingMeals(false);
+    setMealDraft(null);
+
+    const placed = chosen.length - failed;
+    if (placed > 0) toast.celebrate(`${placed} meal time${placed === 1 ? '' : 's'} added.`);
+    if (failed > 0) {
+      toast.warn(`${failed} meal time${failed === 1 ? '' : 's'} could not be added — check for a clash and try again.`);
     }
   };
 
@@ -529,13 +580,23 @@ export default function PlannerPage() {
         </Card>
       )}
 
-      {scheduleDraft && (
+      {scheduleDraft && scheduleDraft.length > 0 && (
         <ScheduleReview
           rows={scheduleDraft}
           onChange={setScheduleDraft}
           onSave={saveSchedule}
           onDismiss={() => setScheduleDraft(null)}
           saving={savingSchedule}
+        />
+      )}
+
+      {mealDraft && mealDraft.length > 0 && (
+        <MealsReview
+          rows={mealDraft}
+          onChange={setMealDraft}
+          onSave={saveMeals}
+          onDismiss={() => setMealDraft(null)}
+          saving={savingMeals}
         />
       )}
 
@@ -607,12 +668,14 @@ export default function PlannerPage() {
         saveLabel="Review this schedule"
         renderPreview={(data) => (
           <p className="text-sm text-sage-800">
-            {data.entries.length} block{data.entries.length === 1 ? '' : 's'} came back. They go to
-            a review list next — nothing is booked yet.
+            {data.entries.length} block{data.entries.length === 1 ? '' : 's'}
+            {data.meals?.length ? ` and ${data.meals.length} meal time${data.meals.length === 1 ? '' : 's'}` : ''} came
+            back. They go to a review list next — nothing is booked yet.
           </p>
         )}
         onSave={(data) => {
           setScheduleDraft(resolveScheduleDraft(data));
+          setMealDraft(resolveMealDraft(data));
           setScheduleBridgeOpen(false);
         }}
       />
