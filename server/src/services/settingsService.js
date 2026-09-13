@@ -1,8 +1,9 @@
 import { getDb } from '../db/index.js';
 import { badRequest } from '../lib/httpError.js';
-import { toMinutes } from '../lib/time.js';
+import { startOfWeek, toMinutes, todayIso } from '../lib/time.js';
 
 const PLANNER_KEY = 'planner';
+const TERM_KEY = 'term';
 
 /**
  * How the automatic planner behaves. The defaults describe an ordinary school
@@ -78,4 +79,39 @@ export function savePlannerSettings(changes) {
     .run(PLANNER_KEY, JSON.stringify(next));
 
   return next;
+}
+
+/**
+ * When "Week 1" begins, so that a fixed commitment can be scoped to a
+ * specific week ("Week 14 only") rather than repeating forever. Defaults to
+ * the Monday of the current week, purely so the feature is usable the moment
+ * it's opened — the student is expected to correct it to their actual term
+ * start once, after which it sticks.
+ */
+export function getTermSettings() {
+  const row = getDb().prepare('SELECT value FROM setting WHERE key = ?').get(TERM_KEY);
+  if (!row) return { start_date: startOfWeek(todayIso()) };
+
+  try {
+    const parsed = JSON.parse(row.value);
+    return { start_date: parsed.start_date || startOfWeek(todayIso()) };
+  } catch {
+    return { start_date: startOfWeek(todayIso()) };
+  }
+}
+
+export function saveTermSettings({ start_date: startDate }) {
+  if (typeof startDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+    throw badRequest('The term start date should look like 2026-06-01.');
+  }
+
+  const value = { start_date: startDate };
+  getDb()
+    .prepare(
+      `INSERT INTO setting (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+    )
+    .run(TERM_KEY, JSON.stringify(value));
+
+  return value;
 }

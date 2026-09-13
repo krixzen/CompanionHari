@@ -94,3 +94,23 @@ export function freeRanges(windowStart, windowEnd, busy) {
 
   return gaps.filter((gap) => gap.end > gap.start);
 }
+
+
+/**
+ * Turns a term's start date into week numbers a student would recognise —
+ * "Week 14" rather than a date range. Week 1 is the seven days starting on
+ * `termStart` (whatever day of the week that falls on); week 2 begins seven
+ * days after that, and so on. There is no calendar-month rounding here on
+ * purpose: a term rarely starts on a Monday, and weeks should still line up
+ * with the day the student actually started counting from.
+ */
+export function weekBounds(termStart, weekNumber) {
+  const from = addDays(termStart, (weekNumber - 1) * 7);
+  return { from, until: addDays(from, 6) };
+}
+
+/** The week number `date` falls in, relative to `termStart`. Can be <= 0 or > 52. */
+export function weekNumberForDate(termStart, date) {
+  const days = Math.floor((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${termStart}T00:00:00Z`)) / 86400000);
+  return Math.floor(days / 7) + 1;
+}

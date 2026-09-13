@@ -27,6 +27,8 @@ const readAnchor = (body) => ({
   start_time: body.start_time,
   end_time: body.end_time,
   ...(body.is_active === undefined ? {} : { is_active: body.is_active }),
+  ...(body.effective_from === undefined ? {} : { effective_from: body.effective_from }),
+  ...(body.effective_until === undefined ? {} : { effective_until: body.effective_until }),
 });
 
 anchorsRouter.get('/', (req, res) => {

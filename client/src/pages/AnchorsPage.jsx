@@ -7,7 +7,8 @@ import { Modal } from '../components/Modal.jsx';
 import { Button, Card, EmptyState, ErrorNote, Field, Select, Spinner, TextInput } from '../components/ui.jsx';
 import { useToast } from '../hooks/useToast.jsx';
 import { ANCHOR_TYPES, anchorStyle } from '../lib/anchors.js';
-import { friendlyTime, toMinutes } from '../lib/week.js';
+import { formatDate } from '../lib/format.js';
+import { friendlyTime, toMinutes, todayIso, weekBounds, weekNumberForDate } from '../lib/week.js';
 
 const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -18,11 +19,14 @@ const blank = {
   start_time: '16:00',
   end_time: '17:00',
   days: [0],
+  scope: 'always', // 'always' | 'weeks'
+  weeks: [],
 };
 
 export default function AnchorsPage() {
   const toast = useToast();
   const [anchors, setAnchors] = useState([]);
+  const [term, setTerm] = useState(null);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -31,7 +35,9 @@ export default function AnchorsPage() {
   const load = async () => {
     setStatus('loading');
     try {
-      setAnchors(await api.anchors.list());
+      const [loadedAnchors, loadedTerm] = await Promise.all([api.anchors.list(), api.settings.term()]);
+      setAnchors(loadedAnchors);
+      setTerm(loadedTerm);
       setStatus('ready');
     } catch (caught) {
       setError(caught.message);
@@ -96,6 +102,8 @@ export default function AnchorsPage() {
         }
       />
 
+      <TermRow term={term} onSaved={setTerm} />
+
       {anchors.length === 0 ? (
         <EmptyState
           title="Nothing here yet."
@@ -140,6 +148,11 @@ export default function AnchorsPage() {
                           <p className="truncate text-sm text-ink">{anchor.label}</p>
                           <p className="text-[11px] text-ink-faint">
                             {friendlyTime(anchor.start_time)}–{friendlyTime(anchor.end_time)}
+                            {anchor.effective_from && (
+                              <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-ink-soft">
+                                Week {weekNumberForDate(term?.start_date ?? todayIso(), anchor.effective_from)} only
+                              </span>
+                            )}
                           </p>
                         </div>
                         <button
@@ -185,6 +198,7 @@ export default function AnchorsPage() {
 
       <AnchorDialog
         anchor={editing === 'new' ? null : editing}
+        term={term}
         open={Boolean(editing)}
         onClose={() => setEditing(null)}
         onSaved={async (message) => {
@@ -208,20 +222,111 @@ export default function AnchorsPage() {
   );
 }
 
-function AnchorDialog({ anchor, open, onClose, onSaved }) {
+/**
+ * When "Week 1" begins — the reference point every "Week N only" commitment
+ * is counted from. Defaults to the Monday of the current week so the feature
+ * works immediately; correct it once to your actual term start and every
+ * week number lines up with it from then on.
+ */
+function TermRow({ term, onSaved }) {
+  const toast = useToast();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  if (!term) return null;
+
+  const start = () => {
+    setValue(term.start_date);
+    setEditing(true);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      onSaved(await api.settings.saveTerm({ start_date: value }));
+      setEditing(false);
+      toast.celebrate('Term start saved.');
+    } catch (caught) {
+      toast.warn(caught.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <p className="mb-5 text-sm text-ink-faint">
+      Counting weeks from{' '}
+      {editing ? (
+        <span className="inline-flex items-center gap-1.5 align-middle">
+          <input
+            type="date"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            className="rounded-lg border border-black/10 bg-paper-raised px-2 py-0.5 text-sm text-ink"
+          />
+          <Button size="sm" variant="primary" onClick={save} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={saving}>
+            Cancel
+          </Button>
+        </span>
+      ) : (
+        <>
+          <strong className="text-ink">{formatDate(term.start_date)}</strong> as Week 1 —{' '}
+          <button
+            type="button"
+            onClick={start}
+            className="text-sage-700 underline-offset-2 hover:underline"
+          >
+            change this
+          </button>{' '}
+          if that is not when your term actually started.
+        </>
+      )}
+    </p>
+  );
+}
+
+function AnchorDialog({ anchor, term, open, onClose, onSaved }) {
   const [draft, setDraft] = useState(blank);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  const termStart = term?.start_date ?? todayIso();
+
   useEffect(() => {
     if (!open) return;
-    setDraft(
-      anchor
-        ? { ...anchor, days: [anchor.day_of_week] }
-        : { ...blank, days: [0] }
-    );
+    if (anchor) {
+      setDraft({
+        ...anchor,
+        days: [anchor.day_of_week],
+        scope: anchor.effective_from ? 'weeks' : 'always',
+        weeks: anchor.effective_from ? [weekNumberForDate(termStart, anchor.effective_from)] : [],
+      });
+    } else {
+      setDraft({ ...blank, days: [0] });
+    }
     setError(null);
+    // termStart only changes when the term settings load, which happens once
+    // before this dialog can be opened — re-deriving on every render would
+    // fight with the user's own week picks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, anchor]);
+
+  const toggleWeek = (week) =>
+    setDraft((current) => ({
+      ...current,
+      // Editing an existing commitment occupies one week at a time — picking
+      // a different one moves it rather than adding a second week to the
+      // same row. Adding a brand new commitment can span several at once.
+      weeks: anchor
+        ? [week]
+        : current.weeks.includes(week)
+          ? current.weeks.filter((value) => value !== week)
+          : [...current.weeks, week].sort((a, b) => a - b),
+    }));
 
   const toggleDay = (day) =>
     setDraft((current) => ({
@@ -240,6 +345,10 @@ function AnchorDialog({ anchor, open, onClose, onSaved }) {
       setError('Pick at least one day.');
       return;
     }
+    if (draft.scope === 'weeks' && draft.weeks.length === 0) {
+      setError('Pick at least one week, or switch back to "Every week".');
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -251,16 +360,37 @@ function AnchorDialog({ anchor, open, onClose, onSaved }) {
         end_time: draft.end_time,
       };
 
+      // "Every week" clears any range; picking specific weeks sets one. An
+      // existing range is only ever replaced here, never merged with itself.
+      const rangeFor = (week) =>
+        draft.scope === 'weeks'
+          ? weekBounds(termStart, week)
+          : { from: null, until: null };
+
       if (anchor) {
-        await api.anchors.update(anchor.id, { ...body, day_of_week: draft.days[0] });
+        const { from, until } = rangeFor(draft.weeks[0]);
+        await api.anchors.update(anchor.id, {
+          ...body,
+          day_of_week: draft.days[0],
+          effective_from: from,
+          effective_until: until,
+        });
         await onSaved(`${body.label} updated.`);
       } else {
-        // One commitment across several days is really one per day.
+        // One commitment across several days — and, when scoped, several
+        // weeks — is really one row per combination.
+        const weeks = draft.scope === 'weeks' ? draft.weeks : [null];
         for (const day of draft.days) {
-          await api.anchors.create({ ...body, day_of_week: day });
+          for (const week of weeks) {
+            const { from, until } = week === null ? { from: null, until: null } : rangeFor(week);
+            await api.anchors.create({ ...body, day_of_week: day, effective_from: from, effective_until: until });
+          }
         }
+        const count = draft.days.length * weeks.length;
         await onSaved(
-          `${body.label} added to ${draft.days.length} day${draft.days.length === 1 ? '' : 's'}.`
+          count === 1
+            ? `${body.label} added.`
+            : `${body.label} added to ${count} slot${count === 1 ? '' : 's'}.`
         );
       }
     } catch (caught) {
@@ -355,6 +485,88 @@ function AnchorDialog({ anchor, open, onClose, onSaved }) {
           Something that runs past midnight, like sleep, goes in as two commitments — one up to
           23:59 and one from 00:00.
         </p>
+
+        <div>
+          <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-ink-soft">
+            Applies to
+          </span>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => setDraft({ ...draft, scope: 'always', weeks: [] })}
+              aria-pressed={draft.scope === 'always'}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                draft.scope === 'always'
+                  ? 'bg-sage-600 text-white'
+                  : 'bg-paper-sunk text-ink-soft hover:bg-sage-100'
+              }`}
+            >
+              Every week
+            </button>
+            <button
+              type="button"
+              onClick={() => setDraft((current) => ({ ...current, scope: 'weeks' }))}
+              aria-pressed={draft.scope === 'weeks'}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                draft.scope === 'weeks'
+                  ? 'bg-sage-600 text-white'
+                  : 'bg-paper-sunk text-ink-soft hover:bg-sage-100'
+              }`}
+            >
+              Just some weeks
+            </button>
+          </div>
+
+          {draft.scope === 'weeks' && (
+            <>
+              <p className="mb-2 mt-3 text-xs text-ink-faint">
+                {anchor
+                  ? 'Pick the one week this applies to.'
+                  : 'Pick every week this should happen — an exam, a run of extra classes.'}
+              </p>
+              <div className="grid max-h-48 grid-cols-4 gap-1.5 overflow-y-auto rounded-xl bg-paper-sunk p-2 sm:grid-cols-6">
+                {Array.from({ length: 52 }, (_, index) => index + 1).map((week) => {
+                  const { from, until } = weekBounds(termStart, week);
+                  const isCurrent = weekNumberForDate(termStart, todayIso()) === week;
+                  return (
+                    <button
+                      key={week}
+                      type="button"
+                      title={`${formatDate(from)} – ${formatDate(until)}`}
+                      aria-pressed={draft.weeks.includes(week)}
+                      onClick={() => toggleWeek(week)}
+                      className={`relative rounded-lg px-1.5 py-1.5 text-xs font-medium transition ${
+                        draft.weeks.includes(week)
+                          ? 'bg-sage-600 text-white'
+                          : 'bg-paper-raised text-ink-soft hover:bg-sage-100'
+                      }`}
+                    >
+                      {week}
+                      {isCurrent && (
+                        <span
+                          aria-hidden="true"
+                          className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${
+                            draft.weeks.includes(week) ? 'bg-white' : 'bg-sage-500'
+                          }`}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {draft.weeks.length > 0 && (
+                <p className="mt-2 text-xs text-ink-faint">
+                  {draft.weeks.length === 1
+                    ? (() => {
+                        const { from, until } = weekBounds(termStart, draft.weeks[0]);
+                        return `Week ${draft.weeks[0]}: ${formatDate(from)} – ${formatDate(until)}`;
+                      })()
+                    : `${draft.weeks.length} weeks selected.`}
+                </p>
+              )}
+            </>
+          )}
+        </div>
 
         {error && <p className="text-sm text-amber-800">{error}</p>}
       </div>

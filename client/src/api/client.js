@@ -128,6 +128,9 @@ export const api = {
     planner: () => request('/settings/planner').then((r) => r.settings),
     savePlanner: (changes) =>
       request('/settings/planner', { method: 'PATCH', body: changes }).then((r) => r.settings),
+    term: () => request('/settings/term').then((r) => r.settings),
+    saveTerm: (changes) =>
+      request('/settings/term', { method: 'PATCH', body: changes }).then((r) => r.settings),
   },
 
   syllabus: {
