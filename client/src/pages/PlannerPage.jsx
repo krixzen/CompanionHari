@@ -323,6 +323,9 @@ export default function PlannerPage() {
         }
         actions={
           <>
+            <Link to="/anchors">
+              <Button>Fixed commitments</Button>
+            </Link>
             <Button onClick={() => setSettingsOpen(true)}>Planner settings</Button>
             <Button onClick={() => setScheduleBridgeOpen(true)}>Ask Claude or ChatGPT to plan it</Button>
             <Button variant="primary" onClick={planWeek} disabled={planning}>
