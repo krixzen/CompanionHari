@@ -352,6 +352,29 @@ block that names a tracking number the app doesn't recognise — already
 scheduled, or not on your list at all — is called out and left aside rather
 than silently dropped or guessed at.
 
+### Planning against an exam date
+Set an **exam date** and a **cover every topic by** date under Fixed
+commitments (`/anchors`) and the prompt paces itself against them:
+- Before the coverage deadline, it's told roughly how much new content is
+  still waiting and how many days are left to get through it, and asked to
+  weight the timetable towards coverage.
+- After it, it's asked to favour revision, consolidation and practice
+  questions over new topics instead.
+- A stretch that straddles the deadline is told to finish off what's left
+  before it, then shift towards revision after.
+
+Both dates are optional — leave them unset and the prompt just doesn't
+mention them.
+
+### Replanning as you go
+Next to the assistant button is **how far ahead to plan** — the current
+week by default, or 2 weeks, 4 weeks, or everything up to the coverage
+deadline (once one is set). Only topics still waiting for a slot are ever
+included, so opening this again later — after finishing some topics,
+falling behind on others, or just wanting a fresh look — always plans
+around wherever things actually stand, not a stale snapshot from whenever
+it was first set up.
+
 When a topic has sub-topics, the prompt lists them out individually (`PHY-001/01`,
 `PHY-001/02`, …) and asks the assistant to schedule one sitting per sub-topic
 rather than one long block for the whole topic, splitting the topic's total
@@ -384,8 +407,9 @@ Phase 2 adds:
 
 - `plan_entry.parent_entry_id` — ties a revision block to the study block that
   created it, so moving or deleting one carries the other along.
-- `setting` — a small key/value store, used for the planner's preferences and
-  the term start date under the key `term`.
+- `setting` — a small key/value store, used for the planner's preferences and,
+  under the key `term`, the term start date plus the optional `exam_date` and
+  `cover_by_date` the AI-scheduling prompt paces itself against.
 - `anchor.effective_from` / `anchor.effective_until` — scope an *extra*
   commitment to a run of dates instead of forever.
 - `exam` joined the list of recognised commitment kinds.

@@ -1,3 +1,4 @@
+import { formatMinutes } from './format.js';
 import {
   schedulePlanSchema,
   testPatternSchema,
@@ -7,6 +8,8 @@ import {
 } from './schemas.js';
 
 const schemaBlock = (schema) => JSON.stringify(schema, null, 2);
+const daysBetween = (from, to) =>
+  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
 
 /**
  * Builds the prompt for turning a messy syllabus into a structured topic list.
@@ -173,7 +176,30 @@ ${schemaBlock(topicNotesSchema)}`;
  * this is for when a student wants to hand over the actual judgement calls
  * (which subject first, how to balance a heavy day) to a conversation.
  */
-export function schedulePlanPrompt({ from, to, anchors, topics, existingEntries, settings }) {
+export function schedulePlanPrompt({ from, to, anchors, topics, existingEntries, settings, examDate, coverByDate }) {
+  const examLines = [];
+  if (examDate) {
+    const daysToExam = daysBetween(from, examDate);
+    examLines.push(
+      daysToExam >= 0
+        ? `The exam itself is on ${examDate} — ${daysToExam} day${daysToExam === 1 ? '' : 's'} from the start of this stretch.`
+        : `The exam was ${examDate} — that has already passed; treat this as post-exam if it seems out of place.`
+    );
+  }
+
+  let phaseLine = null;
+  if (coverByDate) {
+    if (to <= coverByDate) {
+      const remainingMinutes = topics.reduce((sum, topic) => sum + topic.allocated_duration_minutes, 0);
+      const daysLeft = Math.max(daysBetween(from, coverByDate), 1);
+      phaseLine = `Every topic should have had its first pass by ${coverByDate} (${daysLeft} day${daysLeft === 1 ? '' : 's'} from the start of this stretch) — after that the plan should lean on revision instead of new material. Right now there is roughly ${formatMinutes(remainingMinutes)} of new topic content still waiting, so this stretch should still push to get through it: weight new coverage over deep revision.`;
+    } else if (from > coverByDate) {
+      phaseLine = `This stretch falls after the ${coverByDate} coverage deadline, so favour revision, consolidation and practice questions over new topics here — draw on what has already been studied rather than racing through what is left.`;
+    } else {
+      phaseLine = `This stretch straddles the ${coverByDate} coverage deadline — push to finish off any remaining new topics in the days before it, then shift the days after towards revision.`;
+    }
+  }
+
   const busyLines = [
     ...anchors
       .filter((anchor) => anchor.is_active)
@@ -203,7 +229,7 @@ export function schedulePlanPrompt({ from, to, anchors, topics, existingEntries,
     .join('\n');
 
   return `You are building a study timetable for a school student, from ${from} to ${to} inclusive.
-
+${examLines.length || phaseLine ? `\n${[...examLines, phaseLine].filter(Boolean).join('\n')}\n` : ''}
 Rules for the day:
 - Nothing before ${settings.day_start} or after ${settings.day_end}.
 - Leave at least ${settings.break_minutes} minutes between blocks.
