@@ -1,10 +1,10 @@
 import { getDb } from '../db/index.js';
 import { badRequest, notFound } from '../lib/httpError.js';
 import { addDays, isIsoDate, toTime, todayIso } from '../lib/time.js';
-import { listAnchors } from './anchorService.js';
 import { listPlanEntries } from './planService.js';
 import { buildBusyMap, reserveSlot, revisionMinutes } from './scheduler.js';
 import { getPlannerSettings } from './settingsService.js';
+import { resolveEffectiveAnchors } from './templateService.js';
 
 /** Below this, the app offers another look at the topic. */
 export const SHAKY_CONFIDENCE = 2;
@@ -127,7 +127,7 @@ export function suggestExtraRevision(studentId, topicId, confidence) {
   const dates = [];
   for (let cursor = from; cursor <= to; cursor = addDays(cursor, 1)) dates.push(cursor);
 
-  const busy = buildBusyMap(dates, listAnchors(studentId), listPlanEntries(studentId, from, to), {
+  const busy = buildBusyMap(dates, resolveEffectiveAnchors(studentId, dates), listPlanEntries(studentId, from, to), {
     entryPadding: settings.break_minutes,
   });
 

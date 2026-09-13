@@ -8,6 +8,7 @@ import { settingsRouter } from './settings.js';
 import { studentsRouter } from './students.js';
 import { subjectsRouter } from './subjects.js';
 import { syllabusRouter } from './syllabus.js';
+import { templatesRouter } from './templates.js';
 import { testsRouter } from './tests.js';
 import { topicsRouter } from './topics.js';
 
@@ -19,6 +20,7 @@ export function createApiRouter() {
   router.use('/topics', topicsRouter);
   router.use('/syllabus', syllabusRouter);
   router.use('/anchors', anchorsRouter);
+  router.use('/templates', templatesRouter);
   router.use('/plan', planRouter);
   router.use('/settings', settingsRouter);
   router.use('/sessions', sessionsRouter);

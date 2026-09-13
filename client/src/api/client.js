@@ -70,11 +70,28 @@ export const api = {
 
   anchors: {
     list: () => request('/anchors').then((r) => r.anchors),
+    effective: (from, to) => request(`/anchors/effective${query({ from, to })}`).then((r) => r.anchors),
     create: (anchor) => request('/anchors', { method: 'POST', body: anchor }).then((r) => r.anchor),
     update: (id, changes) =>
       request(`/anchors/${id}`, { method: 'PATCH', body: changes }).then((r) => r.anchor),
     remove: (id) => request(`/anchors/${id}`, { method: 'DELETE' }),
     starterWeek: () => request('/anchors/starter-week', { method: 'POST' }).then((r) => r.anchors),
+  },
+
+  templates: {
+    list: () => request('/templates').then((r) => r.templates),
+    create: (name) => request('/templates', { method: 'POST', body: { name } }).then((r) => r.template),
+    rename: (id, name) => request(`/templates/${id}`, { method: 'PATCH', body: { name } }).then((r) => r.template),
+    remove: (id) => request(`/templates/${id}`, { method: 'DELETE' }),
+    addBlock: (id, block) =>
+      request(`/templates/${id}/blocks`, { method: 'POST', body: block }).then((r) => r.block),
+    updateBlock: (id, blockId, changes) =>
+      request(`/templates/${id}/blocks/${blockId}`, { method: 'PATCH', body: changes }).then((r) => r.block),
+    removeBlock: (id, blockId) => request(`/templates/${id}/blocks/${blockId}`, { method: 'DELETE' }),
+    assign: (id, weeks) =>
+      request(`/templates/${id}/assign`, { method: 'POST', body: { weeks } }).then((r) => r.templates),
+    unassign: (weeks) =>
+      request('/templates/unassign', { method: 'POST', body: { weeks } }).then((r) => r.templates),
   },
 
   plan: {

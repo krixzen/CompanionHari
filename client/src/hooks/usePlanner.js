@@ -20,7 +20,7 @@ export function usePlanner(mondayIso) {
     try {
       const [loadedEntries, loadedAnchors, loadedSettings, loadedUnscheduled] = await Promise.all([
         api.plan.list(mondayIso, addDays(mondayIso, 6)),
-        api.anchors.list(),
+        api.anchors.effective(mondayIso, addDays(mondayIso, 6)),
         api.settings.planner(),
         api.plan.unscheduled(),
       ]);

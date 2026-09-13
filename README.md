@@ -255,45 +255,54 @@ colour stepped light to dark instead of four separate colours.
 
 **Phase 2 — Timetable with anchors and calendar.**
 
-### Fixed commitments
-Under **Week → Set up your week** (or `/anchors`) you list the things that are
-not up for negotiation: school, coaching, sport, meals, family time, sleep.
-Start from a typical school week and edit it, or build your own. Each one can
-be paused for a term without deleting it. The planner treats every active
-commitment as time it may not touch.
+### Fixed commitments: whole week patterns
+Under **Week → Set up your week** (or `/anchors`) you build **week
+patterns** — a whole named Monday-to-Sunday shape, not a pile of individual
+rules. Every student starts with one, "Regular week," marked **Default**: it
+governs every calendar week until you say otherwise. Add blocks to it —
+school, coaching, sport, meals, family time, sleep, anything — the same way
+across as many days as it happens; start from a typical school week if you'd
+rather edit one than build from nothing.
 
-Anything running past midnight goes in as two commitments — one up to 23:59
-and one from 00:00 — so a block always has an end time later than its start.
+When term life needs a different shape for a stretch — an exam week, a
+sports camp, a run with no coaching at all — click **+ New week pattern**,
+name it, and build it out the same way. Then **Apply to weeks…** and pick
+which calendar weeks (from a grid numbered 1 to 52) should use it instead.
+Applying **replaces** the default for those weeks entirely: an Exam week
+pattern with no Football block in it means no Football that week, even
+though Football is part of your Regular week. Untick a week, or delete the
+pattern, and it goes straight back to the default.
 
-### One-off changes — an exam, a run of extra classes
-Most commitments repeat every week, but term life doesn't always: an exam
-week, a burst of extra coaching, a sports camp. Any commitment can be scoped
-to specific weeks instead of forever:
+Weeks are numbered from a **term start date**, shown at the top of the page
+as "Counting weeks from ⟨date⟩ as Week 1." It defaults to the Monday of the
+current week so the feature works immediately; click **change this** once to
+set it to when your actual term began, and every week number lines up with
+it from then on.
 
-1. When adding or editing a commitment, under **Applies to** choose **Just
-   some weeks** instead of **Every week**.
-2. Pick which week (or weeks) it covers from a grid numbered 1 to 52. Hover a
-   number to see its actual dates.
-3. Save — that commitment only counts on those weeks. Every other week is
-   untouched.
+Anything running past midnight goes in as two blocks — one up to 23:59 and
+one from 00:00 — so a block always has an end time later than its start.
 
-Weeks are numbered from a **term start date**, shown at the top of the
-commitments page as "Counting weeks from ⟨date⟩ as Week 1." It defaults to
-the Monday of the current week so the feature works immediately; click
-**change this** once to set it to when your actual term began, and every
-week number lines up with it from then on.
+A commitment's *name* has always been free text — you don't need a special
+category to call something "Aakash Coaching," "Football," or "Movie Time";
+just type that as the name and pick whichever **kind** (School, Coaching,
+Sport, Meal, Family, Sleep, Exam, Other) fits closest for its colour.
 
-Adding a new commitment across several days *and* several weeks at once
-creates one row per combination — a Tuesday-and-Thursday extra class across
-weeks 20 and 21 becomes four rows. Editing an existing one just moves that
-one row to a different single week.
+### Anything extra — on top of whichever pattern applies
+Below the week patterns sits a second, additive layer for things that are
+not part of any regular week: an exam sitting, a one-off extra class,
+something that should happen *in addition to* whatever pattern already
+governs that week, without your having to build a whole new pattern for it.
 
-**Exam** is also now its own kind of commitment, alongside School, Coaching,
-Sport, Meal, Family, Sleep and Other, so it gets its own colour on the
-calendar. The commitment's *name* has always been free text, though — you
-don't need a special category to call something "Tuition Coaching,"
-"Football," or "Movie Time"; just type that as the name and pick whichever
-kind fits closest.
+1. Click **Add something extra**.
+2. Under **Applies to**, choose **Every week** for something recurring
+   regardless of pattern, or **Just some weeks** to scope it — pick from the
+   same 1–52 grid.
+3. Save. It layers on top; it never replaces anything.
+
+Adding one across several days *and* several weeks at once creates one row
+per combination — a Tuesday-and-Thursday extra class across weeks 20 and 21
+becomes four rows. Editing an existing one just moves that one row to a
+different single week.
 
 ### The week calendar
 **Week** shows seven columns with the hours down the side. Commitments sit
@@ -366,16 +375,23 @@ held back for revision so that adding the follow-up blocks cannot push a day
 past its limit.
 
 ### More on the data model
-Phase 2 adds one column and one table:
+Phase 2 adds:
 
 - `plan_entry.parent_entry_id` — ties a revision block to the study block that
   created it, so moving or deleting one carries the other along.
-- `setting` — a small key/value store, used for the planner's preferences and,
-  since the one-off changes feature above, the term start date under the key
-  `term`.
-- `anchor.effective_from` / `anchor.effective_until` — scope a commitment to
-  a run of dates instead of forever, added when weekly overrides were built.
+- `setting` — a small key/value store, used for the planner's preferences and
+  the term start date under the key `term`.
+- `anchor.effective_from` / `anchor.effective_until` — scope an *extra*
+  commitment to a run of dates instead of forever.
 - `exam` joined the list of recognised commitment kinds.
+- `week_template`, `week_template_block`, `week_assignment` — the whole-week
+  patterns described above. A template's blocks are the always-there shape of
+  a week; `week_assignment` says which calendar week numbers use which
+  template, falling back to the one marked `is_default`. `anchor` remains the
+  *extras* layer, resolved on top of whichever template governs a given
+  week — see `templateService.resolveEffectiveAnchors`, the one place that
+  turns "which pattern governs which week" back into the flat, date-scoped
+  shape the scheduler already understood before templates existed.
 
 ---
 

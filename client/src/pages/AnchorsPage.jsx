@@ -23,27 +23,61 @@ const blank = {
   weeks: [],
 };
 
+/** Collapses a list of week numbers into readable ranges: "Weeks 9–10, 15". */
+function summarizeWeeks(weeks) {
+  if (!weeks || weeks.length === 0) return '';
+  const sorted = [...weeks].sort((a, b) => a - b);
+  const ranges = [];
+  let start = sorted[0];
+  let prev = sorted[0];
+  for (let index = 1; index < sorted.length; index += 1) {
+    if (sorted[index] === prev + 1) {
+      prev = sorted[index];
+      continue;
+    }
+    ranges.push([start, prev]);
+    start = sorted[index];
+    prev = sorted[index];
+  }
+  ranges.push([start, prev]);
+  return ranges.map(([from, to]) => (from === to ? `Week ${from}` : `Weeks ${from}–${to}`)).join(', ');
+}
+
 export default function AnchorsPage() {
   const toast = useToast();
   const [anchors, setAnchors] = useState([]);
+  const [templates, setTemplates] = useState([]);
   const [term, setTerm] = useState(null);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
 
+  const [newTemplateOpen, setNewTemplateOpen] = useState(false);
+  const [blockDialog, setBlockDialog] = useState(null); // { template, block } | null — block null means "adding"
+  const [assignTemplate, setAssignTemplate] = useState(null);
+  const [deletingTemplate, setDeletingTemplate] = useState(null);
+  const [deletingBlock, setDeletingBlock] = useState(null);
+
   const load = async () => {
     setStatus('loading');
     try {
-      const [loadedAnchors, loadedTerm] = await Promise.all([api.anchors.list(), api.settings.term()]);
+      const [loadedAnchors, loadedTerm, loadedTemplates] = await Promise.all([
+        api.anchors.list(),
+        api.settings.term(),
+        api.templates.list(),
+      ]);
       setAnchors(loadedAnchors);
       setTerm(loadedTerm);
+      setTemplates(loadedTemplates);
       setStatus('ready');
     } catch (caught) {
       setError(caught.message);
       setStatus('error');
     }
   };
+
+  const reloadTemplates = async () => setTemplates(await api.templates.list());
 
   useEffect(() => {
     load();
@@ -60,7 +94,26 @@ export default function AnchorsPage() {
 
   const startStarter = async () => {
     try {
-      setAnchors(await api.anchors.starterWeek());
+      const defaultTemplate = templates.find((template) => template.is_default);
+      if (defaultTemplate && defaultTemplate.blocks.length > 0) {
+        toast.warn('The regular week already has blocks in it — add the rest yourself so nothing is duplicated.');
+        return;
+      }
+      await api.anchors.starterWeek();
+      // The starter week lands as ordinary anchors; fold it straight into the
+      // default template so it behaves exactly like every other week pattern.
+      const fresh = await api.anchors.list();
+      for (const anchor of fresh) {
+        await api.templates.addBlock(defaultTemplate.id, {
+          label: anchor.label,
+          type: anchor.type,
+          day_of_week: anchor.day_of_week,
+          start_time: anchor.start_time,
+          end_time: anchor.end_time,
+        });
+        await api.anchors.remove(anchor.id);
+      }
+      await load();
       toast.celebrate('A typical week added. Change anything that is not right.');
     } catch (caught) {
       toast.warn(caught.message);
@@ -87,6 +140,35 @@ export default function AnchorsPage() {
     }
   };
 
+  const createTemplate = async (name) => {
+    await api.templates.create(name);
+    await reloadTemplates();
+    setNewTemplateOpen(false);
+    toast.celebrate(`"${name}" added — build it out, then apply it to whichever weeks need it.`);
+  };
+
+  const confirmDeleteTemplate = async () => {
+    try {
+      await api.templates.remove(deletingTemplate.id);
+      setDeletingTemplate(null);
+      await reloadTemplates();
+      toast.celebrate(`"${deletingTemplate.name}" removed. Its weeks are back on the default.`);
+    } catch (caught) {
+      toast.warn(caught.message);
+    }
+  };
+
+  const confirmDeleteBlock = async () => {
+    try {
+      await api.templates.removeBlock(deletingBlock.template.id, deletingBlock.block.id);
+      setDeletingBlock(null);
+      await reloadTemplates();
+      toast.celebrate('Removed.');
+    } catch (caught) {
+      toast.warn(caught.message);
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -94,99 +176,121 @@ export default function AnchorsPage() {
         backLabel="Back to your week"
         eyebrow="Fixed commitments"
         title="What your week already holds"
-        description="School, coaching, meals, sleep, anything that is not up for negotiation. The planner works around these, so the more honest they are the better your timetable will be."
-        actions={
-          <Button variant="primary" onClick={() => setEditing('new')}>
-            Add a commitment
-          </Button>
-        }
+        description="Build the weeks you actually live — a regular week, an exam week, whatever else comes up — then say which calendar weeks each one covers. The planner works around whichever is active."
       />
 
       <TermRow term={term} onSaved={setTerm} />
 
-      {anchors.length === 0 ? (
-        <EmptyState
-          title="Nothing here yet."
-          action={
-            <div className="flex flex-wrap justify-center gap-2">
-              <Button variant="primary" onClick={startStarter}>
-                Start from a typical school week
-              </Button>
-              <Button onClick={() => setEditing('new')}>Add one myself</Button>
-            </div>
-          }
-        >
-          Start from a typical week and edit it, or build your own from scratch. Either way you can
-          change it whenever your term does.
-        </EmptyState>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {DAY_LABELS.map((dayLabel, day) => (
-            <Card key={dayLabel} className="p-4">
-              <h2 className="text-sm font-semibold text-ink">{dayLabel}</h2>
+      <section className="mb-8">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-soft">Week patterns</h2>
+          <Button size="sm" variant="primary" onClick={() => setNewTemplateOpen(true)}>
+            + New week pattern
+          </Button>
+        </div>
 
-              {byDay[day].length === 0 ? (
-                <p className="mt-2 text-xs text-ink-faint">Nothing fixed — the whole day is yours.</p>
-              ) : (
-                <ul className="mt-2 space-y-1.5">
-                  {byDay[day].map((anchor) => {
-                    const { tint } = anchorStyle(anchor.type);
-                    return (
-                      <li
-                        key={anchor.id}
-                        className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${
-                          anchor.is_active ? '' : 'opacity-50'
-                        }`}
-                        style={{ backgroundColor: `${tint}14` }}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: tint }}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm text-ink">{anchor.label}</p>
-                          <p className="text-[11px] text-ink-faint">
-                            {friendlyTime(anchor.start_time)}–{friendlyTime(anchor.end_time)}
-                            {anchor.effective_from && (
-                              <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-ink-soft">
-                                Week {weekNumberForDate(term?.start_date ?? todayIso(), anchor.effective_from)} only
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => toggleActive(anchor)}
-                          className="text-[11px] text-ink-faint underline-offset-2 hover:text-ink hover:underline"
-                        >
-                          {anchor.is_active ? 'Pause' : 'Resume'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditing(anchor)}
-                          className="text-[11px] text-ink-faint underline-offset-2 hover:text-ink hover:underline"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleting(anchor)}
-                          className="text-[11px] text-ink-faint underline-offset-2 hover:text-ink hover:underline"
-                        >
-                          Delete
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </Card>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {templates.map((template) => (
+            <TemplateCard
+              key={template.id}
+              template={template}
+              weekSummary={summarizeWeeks(template.weeks)}
+              onAddBlock={() => setBlockDialog({ template, block: null })}
+              onEditBlock={(block) => setBlockDialog({ template, block })}
+              onDeleteBlock={(block) => setDeletingBlock({ template, block })}
+              onDeleteTemplate={() => setDeletingTemplate(template)}
+              onAssign={() => setAssignTemplate(template)}
+            />
           ))}
         </div>
-      )}
+      </section>
 
-      {anchors.length > 0 && (
+      <section>
+        <PageHeader
+          eyebrow="On top of that"
+          title="Anything extra"
+          description="Things that are not part of any regular week — an exam sitting, a one-off extra class — added for specific weeks without touching the pattern underneath."
+          actions={
+            <Button variant="primary" onClick={() => setEditing('new')}>
+              Add something extra
+            </Button>
+          }
+        />
+
+        {anchors.length === 0 ? (
+          <EmptyState title="Nothing extra right now.">
+            When something one-off comes up — an exam, an extra class — add it here and pick which
+            weeks it applies to. It won't disturb your regular pattern.
+          </EmptyState>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {DAY_LABELS.map((dayLabel, day) => (
+              <Card key={dayLabel} className="p-4">
+                <h2 className="text-sm font-semibold text-ink">{dayLabel}</h2>
+
+                {byDay[day].length === 0 ? (
+                  <p className="mt-2 text-xs text-ink-faint">Nothing extra here.</p>
+                ) : (
+                  <ul className="mt-2 space-y-1.5">
+                    {byDay[day].map((anchor) => {
+                      const { tint } = anchorStyle(anchor.type);
+                      return (
+                        <li
+                          key={anchor.id}
+                          className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${
+                            anchor.is_active ? '' : 'opacity-50'
+                          }`}
+                          style={{ backgroundColor: `${tint}14` }}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: tint }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm text-ink">{anchor.label}</p>
+                            <p className="text-[11px] text-ink-faint">
+                              {friendlyTime(anchor.start_time)}–{friendlyTime(anchor.end_time)}
+                              {anchor.effective_from && (
+                                <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-ink-soft">
+                                  Week {weekNumberForDate(term?.start_date ?? todayIso(), anchor.effective_from)} only
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => toggleActive(anchor)}
+                            className="text-[11px] text-ink-faint underline-offset-2 hover:text-ink hover:underline"
+                          >
+                            {anchor.is_active ? 'Pause' : 'Resume'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditing(anchor)}
+                            className="text-[11px] text-ink-faint underline-offset-2 hover:text-ink hover:underline"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleting(anchor)}
+                            className="text-[11px] text-ink-faint underline-offset-2 hover:text-ink hover:underline"
+                          >
+                            Delete
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {(anchors.length > 0 || templates.some((template) => template.blocks.length > 0)) && (
         <p className="mt-6 text-sm text-ink-soft">
           Happy with this?{' '}
           <Link to="/planner" className="text-sage-700 underline-offset-2 hover:underline">
@@ -195,6 +299,49 @@ export default function AnchorsPage() {
           .
         </p>
       )}
+
+      {templates.every((template) => template.blocks.length === 0) && anchors.length === 0 && (
+        <EmptyState
+          title="Nothing here yet."
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button variant="primary" onClick={startStarter}>
+                Start from a typical school week
+              </Button>
+            </div>
+          }
+        >
+          Start from a typical week and edit it, or build your own from scratch. Either way you can
+          change it whenever your term does.
+        </EmptyState>
+      )}
+
+      <NewTemplateDialog open={newTemplateOpen} onClose={() => setNewTemplateOpen(false)} onCreate={createTemplate} />
+
+      <TemplateBlockDialog
+        template={blockDialog?.template}
+        block={blockDialog?.block}
+        open={Boolean(blockDialog)}
+        onClose={() => setBlockDialog(null)}
+        onSaved={async (message) => {
+          await reloadTemplates();
+          setBlockDialog(null);
+          toast.celebrate(message);
+        }}
+      />
+
+      <AssignWeeksDialog
+        template={assignTemplate}
+        templates={templates}
+        term={term}
+        open={Boolean(assignTemplate)}
+        onClose={() => setAssignTemplate(null)}
+        onSaved={async (message) => {
+          await reloadTemplates();
+          setAssignTemplate(null);
+          toast.celebrate(message);
+        }}
+      />
 
       <AnchorDialog
         anchor={editing === 'new' ? null : editing}
@@ -218,15 +365,36 @@ export default function AnchorsPage() {
         The planner will treat that time as free from now on. Blocks already on the calendar stay
         where they are.
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={Boolean(deletingTemplate)}
+        onClose={() => setDeletingTemplate(null)}
+        onConfirm={confirmDeleteTemplate}
+        title={`Delete "${deletingTemplate?.name}"?`}
+        confirmLabel="Delete it"
+      >
+        Any weeks currently using it go back to the default week pattern.
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={Boolean(deletingBlock)}
+        onClose={() => setDeletingBlock(null)}
+        onConfirm={confirmDeleteBlock}
+        title={`Remove ${deletingBlock?.block?.label}?`}
+        confirmLabel="Remove it"
+      >
+        This only changes the "{deletingBlock?.template?.name}" pattern — weeks using a different
+        pattern are not affected.
+      </ConfirmDialog>
     </div>
   );
 }
 
 /**
- * When "Week 1" begins — the reference point every "Week N only" commitment
- * is counted from. Defaults to the Monday of the current week so the feature
- * works immediately; correct it once to your actual term start and every
- * week number lines up with it from then on.
+ * When "Week 1" begins — the reference point every week pattern and every
+ * "Week N only" extra is counted from. Defaults to the Monday of the current
+ * week so the feature works immediately; correct it once to your actual term
+ * start and every week number lines up with it from then on.
  */
 function TermRow({ term, onSaved }) {
   const toast = useToast();
@@ -289,6 +457,403 @@ function TermRow({ term, onSaved }) {
   );
 }
 
+/** One named week pattern: its blocks, and which calendar weeks use it. */
+function TemplateCard({ template, weekSummary, onAddBlock, onEditBlock, onDeleteBlock, onDeleteTemplate, onAssign }) {
+  const sortedBlocks = [...template.blocks].sort(
+    (a, b) => a.day_of_week - b.day_of_week || toMinutes(a.start_time) - toMinutes(b.start_time)
+  );
+
+  return (
+    <Card className="p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+            {template.name}
+            {template.is_default && (
+              <span className="rounded-full bg-sage-100 px-2 py-0.5 text-[10px] font-medium text-sage-800">
+                Default
+              </span>
+            )}
+          </h3>
+          <p className="mt-0.5 text-xs text-ink-faint">
+            {template.is_default
+              ? 'Every week uses this unless assigned a different pattern.'
+              : weekSummary
+                ? `Applied to ${weekSummary}.`
+                : 'Not applied to any week yet.'}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <Button size="sm" variant="primary" onClick={onAssign}>
+            Apply to weeks…
+          </Button>
+          {!template.is_default && (
+            <Button size="sm" variant="ghost" onClick={onDeleteTemplate}>
+              Delete
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {sortedBlocks.length === 0 ? (
+        <p className="mt-3 text-xs text-ink-faint">Nothing added yet — the whole week is open.</p>
+      ) : (
+        <ul className="mt-3 max-h-[26rem] space-y-1.5 overflow-y-auto pr-0.5">
+          {sortedBlocks.map((block) => {
+            const { tint } = anchorStyle(block.type);
+            return (
+              <li
+                key={block.id}
+                className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${block.is_active ? '' : 'opacity-50'}`}
+                style={{ backgroundColor: `${tint}14` }}
+              >
+                <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tint }} />
+                <span className="w-9 shrink-0 text-[11px] font-medium text-ink-soft">
+                  {DAY_LABELS[block.day_of_week].slice(0, 3)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm text-ink">{block.label}</p>
+                  <p className="text-[11px] text-ink-faint">
+                    {friendlyTime(block.start_time)}–{friendlyTime(block.end_time)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onEditBlock(block)}
+                  className="text-[11px] text-ink-faint underline-offset-2 hover:text-ink hover:underline"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDeleteBlock(block)}
+                  className="text-[11px] text-ink-faint underline-offset-2 hover:text-ink hover:underline"
+                >
+                  Delete
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <Button size="sm" className="mt-3" onClick={onAddBlock}>
+        Add a block
+      </Button>
+    </Card>
+  );
+}
+
+/** Names a brand new week pattern before it has any blocks in it. */
+function NewTemplateDialog({ open, onClose, onCreate }) {
+  const [name, setName] = useState('');
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setError(null);
+    }
+  }, [open]);
+
+  const save = async () => {
+    if (!name.trim()) {
+      setError('Give it a name — "Exam week", "Holiday week".');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onCreate(name.trim());
+    } catch (caught) {
+      setError(caught.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Name this week pattern"
+      description="Build it out with blocks afterwards, then apply it to whichever calendar weeks need it."
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={save} disabled={saving}>
+            {saving ? 'Creating…' : 'Create'}
+          </Button>
+        </>
+      }
+    >
+      <Field label="Name" error={error}>
+        <TextInput
+          value={name}
+          placeholder="Exam week"
+          onChange={(event) => setName(event.target.value)}
+          autoFocus
+        />
+      </Field>
+    </Modal>
+  );
+}
+
+const blankBlock = { label: '', type: 'other', days: [0], start_time: '16:00', end_time: '17:00' };
+
+/** Adds or edits one block inside a week pattern — no week-scope here, that happens at the template level. */
+function TemplateBlockDialog({ template, block, open, onClose, onSaved }) {
+  const [draft, setDraft] = useState(blankBlock);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setDraft(block ? { ...block, days: [block.day_of_week] } : { ...blankBlock });
+    setError(null);
+  }, [open, block]);
+
+  const toggleDay = (day) =>
+    setDraft((current) => ({
+      ...current,
+      days: block
+        ? [day]
+        : current.days.includes(day)
+          ? current.days.filter((value) => value !== day)
+          : [...current.days, day].sort(),
+    }));
+
+  const save = async () => {
+    if (!draft.label.trim()) {
+      setError('Give it a name — "School", "Football", "Dinner".');
+      return;
+    }
+    if (draft.days.length === 0) {
+      setError('Pick at least one day.');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const body = {
+        label: draft.label.trim(),
+        type: draft.type,
+        start_time: draft.start_time,
+        end_time: draft.end_time,
+      };
+
+      if (block) {
+        await api.templates.updateBlock(template.id, block.id, { ...body, day_of_week: draft.days[0] });
+        await onSaved(`${body.label} updated.`);
+      } else {
+        for (const day of draft.days) {
+          await api.templates.addBlock(template.id, { ...body, day_of_week: day });
+        }
+        const count = draft.days.length;
+        await onSaved(count === 1 ? `${body.label} added.` : `${body.label} added to ${count} days.`);
+      }
+    } catch (caught) {
+      setError(caught.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!template) return null;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={block ? `Edit ${block.label}` : `Add a block to "${template.name}"`}
+      description={block ? null : 'Tick every day it happens and it will be added to each one.'}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={save} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="What is it?">
+          <TextInput
+            value={draft.label}
+            placeholder="School"
+            onChange={(event) => setDraft({ ...draft, label: event.target.value })}
+          />
+        </Field>
+
+        <Field label="Kind">
+          <Select value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value })}>
+            {ANCHOR_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {anchorStyle(type).label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <div>
+          <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-ink-soft">
+            {block ? 'Day' : 'Days'}
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {DAY_LABELS.map((label, day) => (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={draft.days.includes(day)}
+                onClick={() => toggleDay(day)}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                  draft.days.includes(day)
+                    ? 'bg-sage-600 text-white'
+                    : 'bg-paper-sunk text-ink-soft hover:bg-sage-100'
+                }`}
+              >
+                {label.slice(0, 3)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Starts">
+            <TextInput
+              type="time"
+              step="300"
+              value={draft.start_time}
+              onChange={(event) => setDraft({ ...draft, start_time: event.target.value })}
+            />
+          </Field>
+          <Field label="Ends">
+            <TextInput
+              type="time"
+              step="300"
+              value={draft.end_time}
+              onChange={(event) => setDraft({ ...draft, end_time: event.target.value })}
+            />
+          </Field>
+        </div>
+
+        <p className="text-xs text-ink-faint">
+          Something that runs past midnight, like sleep, goes in as two blocks — one up to 23:59 and
+          one from 00:00.
+        </p>
+
+        {error && <p className="text-sm text-amber-800">{error}</p>}
+      </div>
+    </Modal>
+  );
+}
+
+/** Assigns a week pattern to whichever calendar weeks it should replace the default for. */
+function AssignWeeksDialog({ template, templates, term, open, onClose, onSaved }) {
+  const [weeks, setWeeks] = useState([]);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const termStart = term?.start_date ?? todayIso();
+
+  useEffect(() => {
+    if (open && template) {
+      setWeeks(template.weeks ?? []);
+      setError(null);
+    }
+  }, [open, template]);
+
+  if (!template) return null;
+
+  const defaultName = templates.find((candidate) => candidate.is_default)?.name ?? 'the default';
+
+  const currentOwner = (week) => {
+    const owner = templates.find((candidate) => candidate.id !== template.id && candidate.weeks.includes(week));
+    return owner ? owner.name : defaultName;
+  };
+
+  const toggleWeek = (week) =>
+    setWeeks((current) => (current.includes(week) ? current.filter((value) => value !== week) : [...current, week].sort((a, b) => a - b)));
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const before = template.weeks ?? [];
+      const toAssign = weeks.filter((week) => !before.includes(week));
+      const toUnassign = before.filter((week) => !weeks.includes(week));
+      if (toAssign.length > 0) await api.templates.assign(template.id, toAssign);
+      if (toUnassign.length > 0) await api.templates.unassign(toUnassign);
+      await onSaved(
+        weeks.length === 0
+          ? `"${template.name}" is not applied to any week now.`
+          : `"${template.name}" now applies to ${weeks.length} week${weeks.length === 1 ? '' : 's'}.`
+      );
+    } catch (caught) {
+      setError(caught.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Apply "${template.name}" to weeks`}
+      description="Weeks you pick use this pattern instead of whatever would otherwise apply. Untick a week to put it back."
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={save} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+        </>
+      }
+    >
+      <div className="grid max-h-72 grid-cols-4 gap-1.5 overflow-y-auto rounded-xl bg-paper-sunk p-2 sm:grid-cols-6">
+        {Array.from({ length: 52 }, (_, index) => index + 1).map((week) => {
+          const { from, until } = weekBounds(termStart, week);
+          const isCurrent = weekNumberForDate(termStart, todayIso()) === week;
+          const picked = weeks.includes(week);
+          return (
+            <button
+              key={week}
+              type="button"
+              title={`${formatDate(from)} – ${formatDate(until)}${picked ? '' : ` · currently ${currentOwner(week)}`}`}
+              aria-pressed={picked}
+              onClick={() => toggleWeek(week)}
+              className={`relative rounded-lg px-1.5 py-1.5 text-xs font-medium transition ${
+                picked ? 'bg-sage-600 text-white' : 'bg-paper-raised text-ink-soft hover:bg-sage-100'
+              }`}
+            >
+              {week}
+              {isCurrent && (
+                <span
+                  aria-hidden="true"
+                  className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${picked ? 'bg-white' : 'bg-sage-500'}`}
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {weeks.length > 0 && (
+        <p className="mt-2 text-xs text-ink-faint">{summarizeWeeks(weeks)}.</p>
+      )}
+      {error && <p className="mt-2 text-sm text-amber-800">{error}</p>}
+    </Modal>
+  );
+}
+
+/** Adds or edits one extra, one-off thing that layers on top of whichever week pattern applies. */
 function AnchorDialog({ anchor, term, open, onClose, onSaved }) {
   const [draft, setDraft] = useState(blank);
   const [error, setError] = useState(null);
@@ -318,9 +883,9 @@ function AnchorDialog({ anchor, term, open, onClose, onSaved }) {
   const toggleWeek = (week) =>
     setDraft((current) => ({
       ...current,
-      // Editing an existing commitment occupies one week at a time — picking
-      // a different one moves it rather than adding a second week to the
-      // same row. Adding a brand new commitment can span several at once.
+      // Editing an existing extra occupies one week at a time — picking a
+      // different one moves it rather than adding a second week to the same
+      // row. Adding a brand new extra can span several at once.
       weeks: anchor
         ? [week]
         : current.weeks.includes(week)
@@ -338,7 +903,7 @@ function AnchorDialog({ anchor, term, open, onClose, onSaved }) {
 
   const save = async () => {
     if (!draft.label.trim()) {
-      setError('Give it a name — "School", "Football", "Dinner".');
+      setError('Give it a name — "Exam", "Extra class".');
       return;
     }
     if (draft.days.length === 0) {
@@ -377,8 +942,8 @@ function AnchorDialog({ anchor, term, open, onClose, onSaved }) {
         });
         await onSaved(`${body.label} updated.`);
       } else {
-        // One commitment across several days — and, when scoped, several
-        // weeks — is really one row per combination.
+        // One extra across several days — and, when scoped, several weeks —
+        // is really one row per combination.
         const weeks = draft.scope === 'weeks' ? draft.weeks : [null];
         for (const day of draft.days) {
           for (const week of weeks) {
@@ -404,8 +969,8 @@ function AnchorDialog({ anchor, term, open, onClose, onSaved }) {
     <Modal
       open={open}
       onClose={onClose}
-      title={anchor ? `Edit ${anchor.label}` : 'Add a commitment'}
-      description={anchor ? null : 'Tick every day it happens and it will be added to each one.'}
+      title={anchor ? `Edit ${anchor.label}` : 'Add something extra'}
+      description={anchor ? null : 'On top of whichever week pattern applies — tick every day it happens.'}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={saving}>
@@ -421,7 +986,7 @@ function AnchorDialog({ anchor, term, open, onClose, onSaved }) {
         <Field label="What is it?">
           <TextInput
             value={draft.label}
-            placeholder="School"
+            placeholder="Exam"
             onChange={(event) => setDraft({ ...draft, label: event.target.value })}
           />
         </Field>
