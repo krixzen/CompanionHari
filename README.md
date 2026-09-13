@@ -338,8 +338,18 @@ block that names a tracking number the app doesn't recognise — already
 scheduled, or not on your list at all — is called out and left aside rather
 than silently dropped or guessed at.
 
+When a topic has sub-topics, the prompt lists them out individually (`PHY-001/01`,
+`PHY-001/02`, …) and asks the assistant to schedule one sitting per sub-topic
+rather than one long block for the whole topic, splitting the topic's total
+time across them however it sees fit. A topic with no sub-topics still gets
+one plain block, as before. The review list and the calendar both show the
+sub-topic's own text under its number, and its revision chain stays scoped
+to that one sub-topic.
+
 Whichever way a study block gets booked — this, Plan my week, or dragging a
 topic on by hand — its revision chain is booked automatically the same way.
+(Plan my week still books a topic as one whole block; only the assistant
+prompt currently schedules sub-topic by sub-topic.)
 
 ### Revision, booked automatically
 Every study block gets three short revision blocks after it — the next day,
