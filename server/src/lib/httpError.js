@@ -1,0 +1,15 @@
+/** An error carrying an HTTP status, handled centrally in app.js. */
+export class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export const badRequest = (message) => new HttpError(400, message);
+export const notFound = (message) => new HttpError(404, message);
+export const conflict = (message) => new HttpError(409, message);
+
+/** Wraps an async route handler so a rejection reaches the error middleware. */
+export const asyncRoute = (handler) => (req, res, next) =>
+  Promise.resolve(handler(req, res, next)).catch(next);

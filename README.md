@@ -95,18 +95,18 @@ is never uploaded anywhere.
 study-planner/
 ├── client/                  the part you see in the browser
 │   └── src/
-│       ├── pages/           one file per screen
-│       ├── components/      reusable pieces of interface
-│       ├── hooks/           shared behaviour used by screens
+│       ├── pages/           one file per screen (home, subjects, topics, import)
+│       ├── components/      reusable pieces — the LLM Bridge lives here
+│       ├── hooks/           shared behaviour (loaded data, notes, toasts)
 │       ├── api/             how the screens talk to the server
-│       └── lib/             small helpers
+│       └── lib/             prompts, schemas, the JSON checker, formatting
 │
 └── server/                  the part that stores and serves data
     ├── data/                your database file lives here
     └── src/
         ├── routes/          the web addresses the app responds to
-        ├── services/        the thinking: parsing, numbering, rules
-        └── db/              database connection and schema history
+        ├── services/        the thinking: syllabus reading, tracking numbers
+        └── db/              database connection, seed data, schema history
             └── migrations/  numbered .sql files that build the schema
 ```
 
@@ -114,13 +114,87 @@ study-planner/
 
 ## What this phase does
 
-**Phase 0 — Project skeleton.** This phase contains no features on purpose.
-It sets up the frontend, the backend, the database connection and the single
-`npm run dev` command, and shows a placeholder home page that confirms the
-browser can reach the server. Subjects, syllabus import and topic planning
-arrive in Phase 1.
+**Phase 1 — Foundation, syllabus and topics.**
 
----
+### Subjects
+Five subjects are there from the first run — English, Physics, Chemistry,
+Mathematics and Artificial Intelligence. Add your own, rename them, give them
+a colour (those colours become the calendar blocks in Phase 2), drag them into
+the order you think about them, and delete the ones you do not need.
+
+### Bringing in a syllabus
+Open a subject and choose **Import a syllabus**. You can:
+
+- **upload a PDF or a text file** — the text is pulled out on this computer and
+  never uploaded anywhere;
+- **paste the text in** — handy for a short syllabus, or a PDF that will not
+  read properly;
+- **ask Claude or ChatGPT for help** — the app writes a prompt, you paste it
+  into the assistant yourself and paste the reply back. See the LLM Bridge
+  below.
+
+The file is read by looking for numbering, bullets and unit or chapter
+markers. No AI is involved in that reading. Whatever it finds is shown on a
+**review screen** where you can fix titles, add or remove sub-topics, change
+study times and untick anything that is not really a topic. **Nothing is
+written to the database until you press Save.**
+
+If the split came out at the wrong level, two settings on the review screen
+re-read the same text a different way:
+
+- *Units and chapters* — whether each unit is a topic in its own right, or a
+  grouping for the topics beneath it.
+- *Split lines like "Sets: finite sets, subsets, power set"* — turns a
+  comma-separated tail into sub-topics.
+
+If a PDF is a scan or a photograph, there is no text in it to read. The app
+says so and asks you to paste the text in instead.
+
+### Topics
+Each saved topic gets a tracking number built from the subject's prefix —
+`PHY-001`, `MATH-014`. Numbers are never handed out twice, so deleting
+`PHY-007` leaves a gap rather than freeing the number: `PHY-012` means the same
+topic in March as it did in September.
+
+The topic list lets you search titles, sub-topics and tracking numbers, filter
+by status and difficulty, edit study time straight in the row, change status
+from the row, drag topics into a different order, select several at once and
+set all their study times together, and add topics by hand when a syllabus is
+short. Dragging is switched off while a search or filter is active, since the
+order you can see is not the whole order.
+
+### The LLM Bridge
+This app makes no network calls to any AI service, and never will. Instead,
+`client/src/components/LLMBridge.jsx` is a reusable window with two halves:
+
+1. the prompt it has written for you, with a **Copy prompt** button;
+2. a box to paste the assistant's reply into.
+
+Press **Parse & preview** and the reply is stripped of any ``` fences, read as
+JSON and checked against the shape that feature expects. If something is wrong
+it says exactly what — *"topics[0] is missing \"title\"."* — and lets you edit
+and try again. If it is right, you see a preview and nothing is saved until
+you confirm.
+
+It takes a prompt and a schema as props, so Phase 4's test analysis will use
+the very same component.
+
+### A note on the data model
+Every table from the plan exists already — students, anchors, subjects,
+topics, study sessions, plan entries, tests, test results and analyses — even
+though Phases 2 to 4 are what fill most of them in. Two columns were added
+beyond the original list because Phase 1 needs them:
+
+- `subject.code` — the prefix that tracking numbers are built from. It has to
+  live somewhere, and deriving it from the name each time would collide for
+  subjects like Physics and Physical Education.
+- `subject.next_topic_number` — the counter that stops a tracking number ever
+  being reused.
+- `topic.unit` — the unit or chapter a topic sits under, which the syllabus
+  reader already works out.
+
+The app is set up for one student. Every table still carries a `student_id`,
+so turning on multiple profiles later needs no change to the schema.
 
 ## If something goes wrong
 
@@ -129,6 +203,14 @@ another terminal window. Close that window, or press `Ctrl + C` in it.
 
 **The page says it cannot reach the backend** — the server half did not
 start. Look in the terminal for a red error message just above.
+
+**A PDF imports as nonsense, or not at all** — it is probably a scan or a
+photograph, which has no text inside it to read. Copy the syllabus text from
+wherever you can and use the paste box instead.
+
+**The syllabus split into the wrong things** — change *Units and chapters* on
+the review screen, or fix it by hand there. Nothing is saved until you press
+Save, so there is no harm in trying both.
 
 **Anything else** — stop the app with `Ctrl + C`, run `npm install` again,
 and start it with `npm run dev`.
