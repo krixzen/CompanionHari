@@ -1,46 +1,63 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client.js';
+import { RevisionSuggestion, SessionDialog } from './SessionDialog.jsx';
 import { Button, Card } from './ui.jsx';
 import { SubjectDot } from './bits.jsx';
+import { useToast } from '../hooks/useToast.jsx';
 import { formatMinutes } from '../lib/format.js';
 import { friendlyTime, todayIso } from '../lib/week.js';
 
 /**
- * What is actually on today, on the home page, with a tick box for each block.
- * The whole point of a plan is being able to see the next thing without
- * hunting for it.
+ * What is on today, with a tick box for each block. Ticking one off asks how it
+ * went rather than just marking it done — the record of how it felt is the
+ * point, not the tick.
  */
 export function TodayPanel({ onChanged }) {
   const today = todayIso();
+  const toast = useToast();
+
   const [entries, setEntries] = useState(null);
+  const [logging, setLogging] = useState(null);
+  const [suggestion, setSuggestion] = useState(null);
   const [busyId, setBusyId] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       setEntries(await api.plan.list(today, today));
     } catch {
       setEntries([]);
     }
-  };
+  }, [today]);
 
   useEffect(() => {
     load();
-    // The date is fixed for the life of this panel, so this runs once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load]);
 
   if (entries === null) return null;
 
-  const toggle = async (entry) => {
+  const untick = async (entry) => {
     setBusyId(entry.id);
     try {
-      await api.plan.update(entry.id, { completed: !entry.completed });
+      const session = await api.sessions.forPlanEntry(entry.id);
+      if (session) await api.sessions.remove(session.id);
+      else await api.plan.update(entry.id, { completed: false });
       await load();
       onChanged?.();
+    } catch (caught) {
+      toast.warn(caught.message);
     } finally {
       setBusyId(null);
     }
+  };
+
+  const saveSession = async (payload) => {
+    const result = await api.sessions.create(payload);
+    setLogging(null);
+    await load();
+    onChanged?.();
+    toast.celebrate(`${formatMinutes(payload.minutes_spent)} recorded. That counts.`);
+    if (result.suggestion) setSuggestion(result.suggestion);
   };
 
   const done = entries.filter((entry) => entry.completed).length;
@@ -73,9 +90,9 @@ export function TodayPanel({ onChanged }) {
             {done > 0 && ` · ${done} done`}
           </p>
           {entries.map((entry) => (
-            <label
+            <div
               key={entry.id}
-              className={`flex cursor-pointer items-center gap-3 px-5 py-3 transition hover:bg-paper-sunk/50 ${
+              className={`flex items-center gap-3 px-5 py-3 transition ${
                 entry.completed ? 'opacity-60' : ''
               }`}
             >
@@ -83,7 +100,8 @@ export function TodayPanel({ onChanged }) {
                 type="checkbox"
                 checked={entry.completed}
                 disabled={busyId === entry.id}
-                onChange={() => toggle(entry)}
+                onChange={() => (entry.completed ? untick(entry) : setLogging(entry))}
+                aria-label={`${entry.completed ? 'Undo' : 'Record'} ${entry.topic_title}`}
                 className="h-5 w-5 shrink-0 rounded border-black/20 text-sage-600 focus:ring-sage-400"
               />
               <span className="w-20 shrink-0 text-xs text-ink-faint">
@@ -92,9 +110,7 @@ export function TodayPanel({ onChanged }) {
               <SubjectDot colour={entry.subject_colour} />
               <span className="min-w-0 flex-1">
                 <span
-                  className={`block truncate text-sm text-ink ${
-                    entry.completed ? 'line-through' : ''
-                  }`}
+                  className={`block truncate text-sm text-ink ${entry.completed ? 'line-through' : ''}`}
                 >
                   {entry.topic_title}
                 </span>
@@ -104,10 +120,40 @@ export function TodayPanel({ onChanged }) {
                   {formatMinutes(entry.scheduled_duration_minutes)}
                 </span>
               </span>
-            </label>
+            </div>
           ))}
         </Card>
       )}
+
+      <SessionDialog
+        open={Boolean(logging)}
+        planEntry={logging}
+        onClose={() => setLogging(null)}
+        onSave={saveSession}
+      />
+
+      <RevisionSuggestion
+        suggestion={suggestion}
+        open={Boolean(suggestion)}
+        onClose={() => setSuggestion(null)}
+        onAccept={async (proposal) => {
+          try {
+            await api.plan.create({
+              topic_id: proposal.topic_id,
+              scheduled_date: proposal.scheduled_date,
+              scheduled_start_time: proposal.scheduled_start_time,
+              scheduled_duration_minutes: proposal.scheduled_duration_minutes,
+              entry_type: 'revision',
+              revision_interval: '3day',
+            });
+            toast.celebrate('Booked in. Nothing else to do about it now.');
+          } catch (caught) {
+            toast.warn(caught.message);
+          } finally {
+            setSuggestion(null);
+          }
+        }}
+      />
     </section>
   );
 }

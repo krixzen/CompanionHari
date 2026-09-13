@@ -1,5 +1,6 @@
 import { getDb } from '../db/index.js';
 import { conflict, notFound } from '../lib/httpError.js';
+import { colourForPosition } from '../lib/palette.js';
 import { deriveSubjectCode, uniqueSubjectCode } from './trackingNumber.js';
 
 const SELECT_WITH_COUNTS = `
@@ -49,7 +50,9 @@ export function createSubject(studentId, { name, colour, code }) {
       `INSERT INTO subject (student_id, name, code, colour, display_order)
        VALUES (?, ?, ?, ?, ?)`
     )
-    .run(studentId, name, finalCode, colour || '#4f8a73', nextOrder);
+    // Without a chosen colour, take the palette slot for this position so the
+    // set stays distinguishable.
+    .run(studentId, name, finalCode, colour || colourForPosition(nextOrder), nextOrder);
 
   return getSubject(studentId, info.lastInsertRowid);
 }

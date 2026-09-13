@@ -10,12 +10,11 @@ import { Button, Card, ErrorNote, Field, Spinner, TextInput } from '../component
 import { useStudyData } from '../hooks/useStudyData.jsx';
 import { useToast } from '../hooks/useToast.jsx';
 import { formatMinutes } from '../lib/format.js';
+import { SUBJECT_PALETTE } from '../lib/palette.js';
 
-// Calm, distinguishable choices — these become calendar blocks in Phase 2.
-const PALETTE = [
-  '#4f8a73', '#3f7fa8', '#7c6bb0', '#b05f7a', '#c07a3e',
-  '#8a8f4f', '#5f8fb0', '#a0616a', '#6f7a8a', '#3d6f5c',
-];
+// The validated palette — see lib/palette.js for why the order matters and
+// why picking freely from it is a slightly worse idea than it looks.
+const PALETTE = SUBJECT_PALETTE;
 
 export default function SubjectsPage() {
   const { subjects, setSubjects, status, error, reload, refreshSubjects } = useStudyData();

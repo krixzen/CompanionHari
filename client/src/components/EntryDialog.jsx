@@ -8,7 +8,7 @@ import { formatMinutes } from '../lib/format.js';
 import { friendlyTime, longDate, relativeDay } from '../lib/week.js';
 
 /** Opens when a block on the calendar is tapped: move it, resize it, tick it off. */
-export function EntryDialog({ entry, open, onClose, onSave, onDelete }) {
+export function EntryDialog({ entry, open, onClose, onSave, onDelete, onRequestLog, onUndoLog }) {
   const [draft, setDraft] = useState(null);
   const [error, setError] = useState(null);
   const [working, setWorking] = useState(false);
@@ -94,12 +94,12 @@ export function EntryDialog({ entry, open, onClose, onSave, onDelete }) {
           <input
             type="checkbox"
             checked={entry.completed}
-            onChange={(event) => run(() => onSave(entry, { completed: event.target.checked }))}
+            onChange={() => (entry.completed ? run(() => onUndoLog(entry)) : onRequestLog(entry))}
             disabled={working}
             className="h-5 w-5 rounded border-black/20 text-sage-600 focus:ring-sage-400"
           />
           <span className="text-sm text-ink">
-            {entry.completed ? 'Done — nice one.' : 'Mark this as done'}
+            {entry.completed ? 'Done — nice one.' : 'Mark this as done, and say how it went'}
           </span>
         </label>
 

@@ -12,7 +12,8 @@ export function AppShell({ children }) {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-6">
           <Link to="/" className="flex items-center gap-2 text-ink">
             <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-sage-500" />
-            <span className="whitespace-nowrap text-sm font-semibold tracking-tight">
+            {/* Four nav items leave no room for the wordmark on a phone. */}
+            <span className="hidden whitespace-nowrap text-sm font-semibold tracking-tight xs:inline">
               Study Planner
             </span>
           </Link>
@@ -25,6 +26,9 @@ export function AppShell({ children }) {
             </NavLink>
             <NavLink to="/subjects" className={linkClasses}>
               Subjects
+            </NavLink>
+            <NavLink to="/progress" className={linkClasses}>
+              Progress
             </NavLink>
           </nav>
         </div>

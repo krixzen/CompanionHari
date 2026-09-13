@@ -14,6 +14,7 @@ import { PageHeader } from '../components/AppShell.jsx';
 import { ConfirmDialog } from '../components/ConfirmDialog.jsx';
 import { EntryDialog } from '../components/EntryDialog.jsx';
 import { PlannerSettingsDialog } from '../components/PlannerSettingsDialog.jsx';
+import { RevisionSuggestion, SessionDialog } from '../components/SessionDialog.jsx';
 import { UnscheduledPanel } from '../components/UnscheduledPanel.jsx';
 import { PX_PER_MINUTE, WeekGrid, gridWindow } from '../components/WeekGrid.jsx';
 import { Button, Card, EmptyState, ErrorNote, Spinner } from '../components/ui.jsx';
@@ -60,6 +61,8 @@ export default function PlannerPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const [dragging, setDragging] = useState(null);
+  const [logging, setLogging] = useState(null);
+  const [suggestion, setSuggestion] = useState(null);
   const [planning, setPlanning] = useState(false);
   const [report, setReport] = useState(null);
 
@@ -168,6 +171,44 @@ export default function PlannerPage() {
     await refreshSubjects();
     const updated = await api.plan.list(monday, addDays(monday, 6));
     setOpenEntry(updated.find((candidate) => candidate.id === entry.id) ?? null);
+  };
+
+  /** Ticking a block off asks how it went; the session is what marks it done. */
+  const logSession = async (payload) => {
+    const result = await api.sessions.create(payload);
+    setLogging(null);
+    await refresh();
+    await refreshSubjects();
+    toast.celebrate(`${formatMinutes(payload.minutes_spent)} recorded. That counts.`);
+    if (result.suggestion) setSuggestion(result.suggestion);
+  };
+
+  const undoLog = async (entry) => {
+    const session = await api.sessions.forPlanEntry(entry.id);
+    if (session) await api.sessions.remove(session.id);
+    else await api.plan.update(entry.id, { completed: false });
+    await refresh();
+    await refreshSubjects();
+    setOpenEntry(null);
+  };
+
+  const bookSuggestion = async (proposal) => {
+    try {
+      await api.plan.create({
+        topic_id: proposal.topic_id,
+        scheduled_date: proposal.scheduled_date,
+        scheduled_start_time: proposal.scheduled_start_time,
+        scheduled_duration_minutes: proposal.scheduled_duration_minutes,
+        entry_type: 'revision',
+        revision_interval: '3day',
+      });
+      await refresh();
+      toast.celebrate('Booked in. Nothing else to do about it now.');
+    } catch (caught) {
+      toast.warn(caught.message);
+    } finally {
+      setSuggestion(null);
+    }
   };
 
   const deleteEntry = async (entry) => {
@@ -340,10 +381,26 @@ export default function PlannerPage() {
 
       <EntryDialog
         entry={openEntry}
-        open={Boolean(openEntry)}
+        open={Boolean(openEntry) && !logging}
         onClose={() => setOpenEntry(null)}
         onSave={saveEntry}
         onDelete={deleteEntry}
+        onRequestLog={(entry) => setLogging(entry)}
+        onUndoLog={undoLog}
+      />
+
+      <SessionDialog
+        open={Boolean(logging)}
+        planEntry={logging}
+        onClose={() => setLogging(null)}
+        onSave={logSession}
+      />
+
+      <RevisionSuggestion
+        suggestion={suggestion}
+        open={Boolean(suggestion)}
+        onClose={() => setSuggestion(null)}
+        onAccept={bookSuggestion}
       />
 
       <PlannerSettingsDialog

@@ -4,6 +4,7 @@ import { api } from '../api/client.js';
 import { PageHeader } from '../components/AppShell.jsx';
 import { ConfirmDialog } from '../components/ConfirmDialog.jsx';
 import { DragHandle, SortableList, SortableRow } from '../components/SortableList.jsx';
+import { RevisionSuggestion, SessionDialog } from '../components/SessionDialog.jsx';
 import { TopicForm } from '../components/TopicForm.jsx';
 import { DifficultyDots, ProgressBar, SubjectDot } from '../components/bits.jsx';
 import {
@@ -51,6 +52,8 @@ export default function TopicsPage() {
   const [editing, setEditing] = useState(null); // topic, or 'new'
   const [deleting, setDeleting] = useState(null);
   const [expanded, setExpanded] = useState(() => new Set());
+  const [logging, setLogging] = useState(null);
+  const [suggestion, setSuggestion] = useState(null);
 
   const subject = subjects.find((candidate) => candidate.id === id);
   const filtering = Boolean(statusFilter || difficultyFilter || debouncedSearch);
@@ -129,6 +132,14 @@ export default function TopicsPage() {
     } catch (caught) {
       toast.warn(caught.message);
     }
+  };
+
+  const logSession = async (payload) => {
+    const result = await api.sessions.create(payload);
+    setLogging(null);
+    await afterChange();
+    toast.celebrate(`${formatMinutes(payload.minutes_spent)} recorded against ${logging.tracking_number}.`);
+    if (result.suggestion) setSuggestion(result.suggestion);
   };
 
   const applyBulkDuration = async (minutes) => {
@@ -291,6 +302,7 @@ export default function TopicsPage() {
                       onPatch={(changes) => patch(topic.id, changes)}
                       onEdit={() => setEditing(topic)}
                       onDelete={() => setDeleting(topic)}
+                      onLog={() => setLogging(topic)}
                     />
                   )}
                 </SortableRow>
@@ -306,6 +318,37 @@ export default function TopicsPage() {
         subjectName={subject.name}
         onClose={() => setEditing(null)}
         onSave={saveTopic}
+      />
+
+      <SessionDialog
+        open={Boolean(logging)}
+        topic={logging}
+        plannedMinutes={logging?.allocated_duration_minutes}
+        onClose={() => setLogging(null)}
+        onSave={logSession}
+      />
+
+      <RevisionSuggestion
+        suggestion={suggestion}
+        open={Boolean(suggestion)}
+        onClose={() => setSuggestion(null)}
+        onAccept={async (proposal) => {
+          try {
+            await api.plan.create({
+              topic_id: proposal.topic_id,
+              scheduled_date: proposal.scheduled_date,
+              scheduled_start_time: proposal.scheduled_start_time,
+              scheduled_duration_minutes: proposal.scheduled_duration_minutes,
+              entry_type: 'revision',
+              revision_interval: '3day',
+            });
+            toast.celebrate('Booked in.');
+          } catch (caught) {
+            toast.warn(caught.message);
+          } finally {
+            setSuggestion(null);
+          }
+        }}
       />
 
       <ConfirmDialog
@@ -332,6 +375,7 @@ function TopicRow({
   onPatch,
   onEdit,
   onDelete,
+  onLog,
 }) {
   const [duration, setDuration] = useState(String(topic.allocated_duration_minutes));
 
@@ -429,6 +473,9 @@ function TopicRow({
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+          <Button size="sm" variant="ghost" onClick={onLog}>
+            Log time
+          </Button>
           <Button size="sm" variant="ghost" onClick={onEdit}>
             Edit
           </Button>

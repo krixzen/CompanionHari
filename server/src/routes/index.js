@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { anchorsRouter } from './anchors.js';
 import { planRouter } from './plan.js';
+import { progressRouter } from './progress.js';
+import { sessionsRouter } from './sessions.js';
 import { settingsRouter } from './settings.js';
 import { studentsRouter } from './students.js';
 import { subjectsRouter } from './subjects.js';
@@ -17,6 +19,8 @@ export function createApiRouter() {
   router.use('/anchors', anchorsRouter);
   router.use('/plan', planRouter);
   router.use('/settings', settingsRouter);
+  router.use('/sessions', sessionsRouter);
+  router.use('/progress', progressRouter);
 
   return router;
 }

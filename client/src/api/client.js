@@ -88,6 +88,19 @@ export const api = {
       request('/plan/clear', { method: 'POST', body: { from, to, includeCompleted } }),
   },
 
+  sessions: {
+    list: (params) => request(`/sessions${query(params)}`),
+    forPlanEntry: (planEntryId) =>
+      request(`/sessions/for-plan-entry/${planEntryId}`).then((r) => r.session),
+    create: (session) => request('/sessions', { method: 'POST', body: session }),
+    update: (id, changes) => request(`/sessions/${id}`, { method: 'PATCH', body: changes }),
+    remove: (id) => request(`/sessions/${id}`, { method: 'DELETE' }),
+  },
+
+  progress: {
+    get: (params) => request(`/progress${query(params)}`),
+  },
+
   settings: {
     planner: () => request('/settings/planner').then((r) => r.settings),
     savePlanner: (changes) =>

@@ -1,17 +1,18 @@
 import { getDb } from './index.js';
+import { colourForPosition } from '../lib/palette.js';
 
 // The app is set up for one student. The record still carries a student_id on
 // every table, so turning on multiple profiles later needs no migration.
 const DEFAULT_STUDENT = { name: 'Hari', class: '', stream: '' };
 
-// Calm, clearly distinguishable colours — they become the calendar blocks in
-// Phase 2, so they need to read well side by side.
+// Colours come from the validated palette, in order — see lib/palette.js for
+// why the order matters.
 const DEFAULT_SUBJECTS = [
-  { name: 'English', code: 'ENG', colour: '#7c6bb0' },
-  { name: 'Physics', code: 'PHY', colour: '#3f7fa8' },
-  { name: 'Chemistry', code: 'CHEM', colour: '#c07a3e' },
-  { name: 'Mathematics', code: 'MATH', colour: '#4f8a73' },
-  { name: 'Artificial Intelligence', code: 'AI', colour: '#b05f7a' },
+  { name: 'English', code: 'ENG' },
+  { name: 'Physics', code: 'PHY' },
+  { name: 'Chemistry', code: 'CHEM' },
+  { name: 'Mathematics', code: 'MATH' },
+  { name: 'Artificial Intelligence', code: 'AI' },
 ];
 
 /**
@@ -36,7 +37,7 @@ export function ensureSeedData() {
     );
     const seedSubjects = db.transaction(() => {
       DEFAULT_SUBJECTS.forEach((subject, index) => {
-        insertSubject.run(student.id, subject.name, subject.code, subject.colour, index);
+        insertSubject.run(student.id, subject.name, subject.code, colourForPosition(index), index);
       });
     });
     seedSubjects();

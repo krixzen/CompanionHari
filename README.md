@@ -97,8 +97,8 @@ study-planner/
 │   └── src/
 │       ├── pages/           one file per screen (home, week, commitments,
 │       │                    subjects, topics, syllabus import)
-│       ├── components/      reusable pieces — the week grid and the
-│       │                    LLM Bridge live here
+│       ├── components/      reusable pieces — the week grid, the charts
+│       │                    and the LLM Bridge live here
 │       ├── hooks/           shared behaviour (loaded data, notes, toasts)
 │       ├── api/             how the screens talk to the server
 │       └── lib/             prompts, schemas, the JSON checker, formatting
@@ -108,7 +108,7 @@ study-planner/
     └── src/
         ├── routes/          the web addresses the app responds to
         ├── services/        the thinking: syllabus reading, tracking numbers,
-        │                    the week planner and its scheduling arithmetic
+        │                    the week planner, and the progress figures
         ├── lib/             small shared helpers (dates, times, validation)
         └── db/              database connection, seed data, schema history
             └── migrations/  numbered .sql files that build the schema
@@ -117,6 +117,76 @@ study-planner/
 ---
 
 ## What this phase does
+
+**Phase 3 — Study sessions and progress tracking.**
+
+### Recording a session
+Tick a block off — on your week, or in the Today list on the home page — and it
+asks **how did that go?** rather than just marking it done:
+
+- how it felt, from *I could teach it* down to *Lost*;
+- how long it really took, pre-filled with what was planned, because the two
+  being different is worth knowing;
+- anything worth remembering.
+
+Studying done away from the plan is recorded with **Log time** on any topic in
+the topic list. Un-ticking a block deletes the session it created, so nothing is
+ever counted twice.
+
+A session nudges its topic along — *Learning* after a study block, *Revised*
+after a revision block. It never marks a topic *Confident* on your behalf; that
+one is your call.
+
+### When something felt hard
+Rate a session *Shaky* or *Lost* and the app looks for the next free gap and
+offers it: "there is room for another 20 minutes on Thursday at 5pm." Nothing is
+booked unless you say yes. The plan stays yours.
+
+### Progress
+The **Progress** page has four ranges — four weeks, three months, a year — and
+shows:
+
+- **Minutes studied each day**, with the busiest day picked out.
+- **Where the time went**, per subject, in the subject's own colour with its
+  name beside it.
+- **How the topics stand** across the four stages.
+- **How things have felt** — one small panel per subject rather than five lines
+  on one plot, because confidence scores between 1 and 5 converge into a knot
+  if you draw them together.
+- **Worth another look** — the topics whose last rating was low.
+- **Everything you have recorded**, which is also the plain-text version of
+  every chart above it.
+
+Days with nothing on them are simply not counted. There is no streak to break
+and no "missed" figure anywhere: a quiet day costs you nothing, which is the
+whole point.
+
+### About the colours
+The subject colours shipped in Phase 1 were picked by eye, and they failed a
+colourblindness check badly — under deuteranopia the Mathematics and AI colours
+were almost the same colour, and two more read as grey. They have been replaced
+with a validated palette: eight hues in a fixed order, each checked for
+lightness, saturation, contrast against the page, and separation from its
+neighbours under simulated protanopia and deuteranopia.
+
+Two consequences worth knowing:
+
+- **Existing subjects were re-coloured** when the app updated. The order is what
+  makes the palette safe, so colours are handed out by position rather than
+  preference, and your subjects were moved onto the matching slots.
+- **Nothing anywhere relies on colour alone.** Calendar blocks carry their
+  tracking number, chart bars carry the subject name, the small multiples carry
+  a title. Colour ties the screens together; the label is what identifies.
+
+Topic status is a progression rather than four unrelated things, so it uses one
+colour stepped light to dark instead of four separate colours.
+
+### What Phase 3 adds to the data model
+- `study_session.plan_entry_id` — ties a session to the block it came from, so
+  un-ticking that block takes the session away again. Sessions logged off-plan
+  leave it empty, and deleting a block keeps the session.
+
+---
 
 **Phase 2 — Timetable with anchors and calendar.**
 
@@ -276,6 +346,10 @@ start. Look in the terminal for a red error message just above.
 **A PDF imports as nonsense, or not at all** — it is probably a scan or a
 photograph, which has no text inside it to read. Copy the syllabus text from
 wherever you can and use the paste box instead.
+
+**My subject colours changed by themselves** — they were replaced in Phase 3
+because the originals were not safe for colourblind readers. Pick different ones
+any time under Subjects; the eight offered are all checked against each other.
 
 **The planner put nothing in, or very little** — it usually means the days are
 already full. Check *Planner settings*: the day may be too short, the daily
