@@ -539,6 +539,22 @@ set all their study times together, and add topics by hand when a syllabus is
 short. Dragging is switched off while a search or filter is active, since the
 order you can see is not the whole order.
 
+### Starting mid-term — marking what's already covered
+Select several topics (the checkbox on each row) and, in the bar that
+appears, **mark them as** whichever status actually fits — handy for
+everything covered before you started using this app, which the app has no
+other way of knowing about. "Revised" or "Confident" takes a topic out of
+the queue for fresh study entirely: **Plan my week** and the AI-scheduling
+prompt both stop treating it as something waiting to be learned.
+
+It isn't dropped from planning altogether, though — a topic marked
+"Revised" shows up in the AI-scheduling prompt under a separate heading, as
+already covered and needing revision rather than a first pass, and the
+assistant is asked to give it a short revision sitting instead. Each
+topic's own three-way badges (**Study/Practice/Revision**, see above) make
+it easy to see afterwards which of these catch-up revisions have actually
+happened.
+
 Sub-topics carry their own number too — `PHY-001/01`, `PHY-001/02` — shown
 wherever a topic's sub-topics are listed, on the topic list and when editing
 one. It is positional: it reflects where a sub-topic currently sits in the

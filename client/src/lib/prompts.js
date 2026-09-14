@@ -176,7 +176,32 @@ ${schemaBlock(topicNotesSchema)}`;
  * this is for when a student wants to hand over the actual judgement calls
  * (which subject first, how to balance a heavy day) to a conversation.
  */
-export function schedulePlanPrompt({ from, to, anchors, topics, existingEntries, settings, examDate, coverByDate }) {
+const buildTopicLines = (topicList) =>
+  topicList
+    .map((topic) => {
+      const header = `- ${topic.tracking_number} ${topic.title} (${topic.subject_name}) — about ${topic.allocated_duration_minutes} minutes in total, difficulty ${topic.difficulty}/5${topic.target_date ? `, due ${topic.target_date}` : ''}`;
+      if (!topic.sub_topics?.length) return header;
+      const subLines = topic.sub_topics
+        .map(
+          (subTopic, index) =>
+            `    - ${topic.tracking_number}/${String(index + 1).padStart(2, '0')}: ${subTopic}`
+        )
+        .join('\n');
+      return `${header}\n${subLines}`;
+    })
+    .join('\n');
+
+export function schedulePlanPrompt({
+  from,
+  to,
+  anchors,
+  topics,
+  needsRevision = [],
+  existingEntries,
+  settings,
+  examDate,
+  coverByDate,
+}) {
   const examLines = [];
   if (examDate) {
     const daysToExam = daysBetween(from, examDate);
@@ -214,19 +239,8 @@ export function schedulePlanPrompt({ from, to, anchors, topics, existingEntries,
     ),
   ].join('\n');
 
-  const topicLines = topics
-    .map((topic) => {
-      const header = `- ${topic.tracking_number} ${topic.title} (${topic.subject_name}) — about ${topic.allocated_duration_minutes} minutes in total, difficulty ${topic.difficulty}/5${topic.target_date ? `, due ${topic.target_date}` : ''}`;
-      if (!topic.sub_topics?.length) return header;
-      const subLines = topic.sub_topics
-        .map(
-          (subTopic, index) =>
-            `    - ${topic.tracking_number}/${String(index + 1).padStart(2, '0')}: ${subTopic}`
-        )
-        .join('\n');
-      return `${header}\n${subLines}`;
-    })
-    .join('\n');
+  const topicLines = buildTopicLines(topics);
+  const revisionTopicLines = buildTopicLines(needsRevision);
 
   return `You are building a study timetable for a school student, from ${from} to ${to} inclusive.
 ${examLines.length || phaseLine ? `\n${[...examLines, phaseLine].filter(Boolean).join('\n')}\n` : ''}
@@ -241,7 +255,11 @@ ${busyLines || '(nothing fixed recorded yet)'}
 
 Topics waiting for a place on the calendar, with their sub-topics listed underneath where there are any:
 ${topicLines || '(nothing waiting — every topic already has a slot)'}
-
+${
+  revisionTopicLines
+    ? `\nTopics already covered — studied before this stretch, whether through this app or not — that need revision rather than a first pass. Do not schedule these as new study; give each a short revision sitting instead (about a third the length of a normal study sitting), mark it with "session_type": "revision", and use its tracking number the same way (sub-topic numbers included, where listed):\n${revisionTopicLines}\n`
+    : ''
+}
 Schedule sub-topic by sub-topic wherever a topic has them listed, rather than booking the whole topic as one sitting — split its total minutes across its sub-topics however makes sense (a harder one can take longer than an easier one), and give each its own block using its own number, e.g. "PHY-001/01", "PHY-001/02". Only use the plain topic number, with no "/NN", for a topic that has no sub-topics listed. Do not invent a number that is not listed above.
 
 Make it realistic and thoughtful, not a cram session:

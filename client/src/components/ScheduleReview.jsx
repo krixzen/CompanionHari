@@ -77,6 +77,7 @@ export function ScheduleReview({ rows, onChange, onSave, onDismiss, saving }) {
               >
                 <option value="study">Study</option>
                 <option value="practice">Practice</option>
+                <option value="revision">Revision</option>
               </Select>
               <TextInput
                 type="date"

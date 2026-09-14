@@ -7,6 +7,7 @@ import {
   createPlanEntry,
   deletePlanEntry,
   listPlanEntries,
+  listTopicsNeedingRevision,
   listUnscheduledTopics,
   suggestStudySlot,
   updatePlanEntry,
@@ -40,6 +41,10 @@ planRouter.get(
 
 planRouter.get('/unscheduled', (req, res) => {
   res.json({ topics: listUnscheduledTopics(studentId()) });
+});
+
+planRouter.get('/needs-revision', (req, res) => {
+  res.json({ topics: listTopicsNeedingRevision(studentId()) });
 });
 
 planRouter.post(
