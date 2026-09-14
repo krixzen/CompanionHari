@@ -13,6 +13,9 @@ export const ANCHOR_STYLES = {
   sleep: { label: 'Sleep', tint: '#6f7a8a' },
   exam: { label: 'Exam', tint: '#c0392b' },
   other: { label: 'Other', tint: '#8b91a1' },
+  // Rendering-only — study time isn't a real commitment type a student can
+  // pick when adding an anchor, just how the calendar tints its own windows.
+  study: { label: 'Study time', tint: '#3d6f5c' },
 };
 
 export const anchorStyle = (type) => ANCHOR_STYLES[type] ?? ANCHOR_STYLES.other;

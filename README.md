@@ -386,6 +386,13 @@ Until you've set any study time, both planners behave exactly as before —
 free to use any open gap in the day. Once you have, they only place blocks
 inside it.
 
+Once any study time exists, **Week** gains a second toggle next to
+Week/Day: **Full** (everything — school, coaching, meals, sleep, the lot)
+or **Study time only**, which hides every other commitment's wash and
+shows just the agreed windows, tinted green, with whatever's actually
+booked inside them still visible on top — a quick answer to "is study time
+being used" without the rest of the week's clutter in the way.
+
 ### Plan my week
 One button fills the week's free time — inside your study-time windows,
 once you've set any; every open gap in the day otherwise. It works in a
