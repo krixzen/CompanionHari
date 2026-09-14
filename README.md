@@ -338,6 +338,14 @@ happened on a given day is always visible afterwards on **Progress**, which
 can be filtered down to a single day (recording is a daily thing, so being
 able to look at one day is often more useful than a whole month's chart).
 
+The three-way split shows up on **Subjects** too, at both levels: a card at
+the top of a subject totals Study/Practice/Revision as completed-out-of-
+planned across every topic in it, and each topic underneath carries the
+same split as small badges (a kind that has nothing planned for that topic
+doesn't get a badge — a topic with no practice booked shows Study and
+Revision only). Ticking a block off on the calendar is what moves these
+numbers; there's nothing separate to maintain.
+
 ### Plan my week
 One button fills the week's free time. It works in a deliberately predictable
 order, so you can always see why it chose what it chose:

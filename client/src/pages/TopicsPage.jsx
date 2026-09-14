@@ -98,7 +98,9 @@ export default function TopicsPage() {
     const previous = topics;
     setTopics(order.map((topicId) => topics.find((topic) => topic.id === topicId)));
     try {
-      setTopics(await api.topics.reorder(id, order));
+      const reordered = await api.topics.reorder(id, order);
+      const byId = new Map(previous.map((topic) => [topic.id, topic]));
+      setTopics(reordered.map((topic) => ({ ...byId.get(topic.id), ...topic })));
     } catch (caught) {
       setTopics(previous);
       toast.warn(caught.message);
@@ -108,7 +110,10 @@ export default function TopicsPage() {
   const patch = async (topicId, changes) => {
     try {
       const updated = await api.topics.update(topicId, changes);
-      setTopics((current) => current.map((topic) => (topic.id === topicId ? updated : topic)));
+      // update() doesn't recompute plan_summary, so keep whatever the list already had for it.
+      setTopics((current) =>
+        current.map((topic) => (topic.id === topicId ? { ...topic, ...updated } : topic))
+      );
       await refreshSubjects();
     } catch (caught) {
       toast.warn(caught.message);
@@ -189,6 +194,8 @@ export default function TopicsPage() {
           />
         </div>
       )}
+
+      {topics.length > 0 && <PlanBreakdown topics={topics} filtered={filtering} />}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="w-full sm:w-72">
@@ -475,6 +482,8 @@ function TopicRow({
               <span className="text-xs text-ink-faint">by {formatDate(topic.target_date)}</span>
             )}
           </div>
+
+          <PlanSummaryBadges summary={topic.plan_summary} />
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
@@ -533,5 +542,76 @@ function BulkBar({ count, onApply, onClear }) {
         Clear selection
       </Button>
     </div>
+  );
+}
+
+const PLAN_KINDS = ['study', 'practice', 'revision'];
+const PLAN_KIND_META = {
+  study: { label: 'Study', icon: null },
+  practice: { label: 'Practice', icon: '✎' },
+  revision: { label: 'Revision', icon: '↻' },
+};
+
+const blankPlanTotals = () => ({
+  study: { total: 0, completed: 0 },
+  practice: { total: 0, completed: 0 },
+  revision: { total: 0, completed: 0 },
+});
+
+/** Small badges on a topic row: how much of it is planned, and how much of that is done, by kind. */
+function PlanSummaryBadges({ summary }) {
+  if (!summary) return null;
+  const parts = PLAN_KINDS.map((kind) => ({ kind, ...summary[kind] })).filter((part) => part.total > 0);
+  if (parts.length === 0) return null;
+
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {parts.map((part) => (
+        <span
+          key={part.kind}
+          className="inline-flex items-center gap-1 rounded-full bg-paper-sunk px-2 py-0.5 text-[11px] text-ink-soft"
+        >
+          {PLAN_KIND_META[part.kind].icon && <span aria-hidden="true">{PLAN_KIND_META[part.kind].icon}</span>}
+          {PLAN_KIND_META[part.kind].label} {part.completed}/{part.total}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** The same three-way split, summed across every topic currently listed — the subject-level view. */
+function PlanBreakdown({ topics, filtered }) {
+  const totals = useMemo(() => {
+    const totals = blankPlanTotals();
+    for (const topic of topics) {
+      if (!topic.plan_summary) continue;
+      for (const kind of PLAN_KINDS) {
+        totals[kind].total += topic.plan_summary[kind].total;
+        totals[kind].completed += topic.plan_summary[kind].completed;
+      }
+    }
+    return totals;
+  }, [topics]);
+
+  const grandTotal = PLAN_KINDS.reduce((sum, kind) => sum + totals[kind].total, 0);
+  if (grandTotal === 0) return null;
+
+  return (
+    <Card className="mb-6 p-4">
+      <h2 className="text-sm font-semibold text-ink">
+        {filtered ? 'Across the topics shown below' : 'This subject, study through revision'}
+      </h2>
+      <div className="mt-2 grid grid-cols-3 gap-3">
+        {PLAN_KINDS.map((kind) => (
+          <div key={kind}>
+            <p className="text-xs text-ink-faint">{PLAN_KIND_META[kind].label}</p>
+            <p className="mt-0.5 text-lg font-semibold text-ink">
+              {totals[kind].completed}
+              <span className="text-sm font-normal text-ink-faint"> / {totals[kind].total}</span>
+            </p>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
