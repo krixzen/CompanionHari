@@ -11,9 +11,23 @@ const STARTER_WEEK = [
   { label: 'Sleep', type: 'sleep', days: [0, 1, 2, 3, 4, 5, 6], start_time: '22:30', end_time: '23:59' },
   { label: 'Sleep', type: 'sleep', days: [0, 1, 2, 3, 4, 5, 6], start_time: '00:00', end_time: '06:30' },
   { label: 'Breakfast', type: 'meal', days: [0, 1, 2, 3, 4, 5, 6], start_time: '07:00', end_time: '07:30' },
-  { label: 'School', type: 'school', days: [0, 1, 2, 3, 4], start_time: '08:00', end_time: '14:30' },
-  { label: 'Lunch', type: 'meal', days: [0, 1, 2, 3, 4, 5, 6], start_time: '14:45', end_time: '15:15' },
-  { label: 'Coaching', type: 'coaching', days: [0, 2, 4], start_time: '16:00', end_time: '18:00' },
+  {
+    label: 'School',
+    type: 'school',
+    days: [0, 1, 2, 3, 4],
+    start_time: '08:00',
+    end_time: '14:30',
+    buffer_after_minutes: 20,
+  },
+  { label: 'Lunch', type: 'meal', days: [0, 1, 2, 3, 4, 5, 6], start_time: '14:50', end_time: '15:20' },
+  {
+    label: 'Coaching',
+    type: 'coaching',
+    days: [0, 2, 4],
+    start_time: '16:00',
+    end_time: '18:00',
+    buffer_after_minutes: 15,
+  },
   { label: 'Sport', type: 'sport', days: [1, 3], start_time: '16:30', end_time: '17:30' },
   { label: 'Dinner', type: 'meal', days: [0, 1, 2, 3, 4, 5, 6], start_time: '20:00', end_time: '20:45' },
   { label: 'Family time', type: 'family', days: [5, 6], start_time: '18:00', end_time: '20:00' },
@@ -44,6 +58,16 @@ function getAnchor(studentId, anchorId) {
  * an exam week, a stretch of extra classes — instead of it repeating
  * forever. Both null (the default) means "every week, always".
  */
+/** A non-negative whole number of minutes, or null — travel time is optional. */
+export function readBufferMinutes(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const minutes = Number(value);
+  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 120) {
+    throw badRequest('Travel time should be a number of minutes between 0 and 120.');
+  }
+  return minutes;
+}
+
 function validate({
   label,
   type,
@@ -52,6 +76,7 @@ function validate({
   end_time: end,
   effective_from: effectiveFrom,
   effective_until: effectiveUntil,
+  buffer_after_minutes: bufferAfter,
 }) {
   if (!label || !String(label).trim()) throw badRequest('Give the commitment a name.');
   if (!ANCHOR_TYPES.includes(type)) {
@@ -87,6 +112,7 @@ function validate({
     end_time: end,
     effective_from: from,
     effective_until: until,
+    buffer_after_minutes: readBufferMinutes(bufferAfter),
   };
 }
 
@@ -95,8 +121,8 @@ export function createAnchor(studentId, input) {
   const info = getDb()
     .prepare(
       `INSERT INTO anchor
-         (student_id, label, type, day_of_week, start_time, end_time, is_active, effective_from, effective_until)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
+         (student_id, label, type, day_of_week, start_time, end_time, is_active, effective_from, effective_until, buffer_after_minutes)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`
     )
     .run(
       studentId,
@@ -106,7 +132,8 @@ export function createAnchor(studentId, input) {
       anchor.start_time,
       anchor.end_time,
       anchor.effective_from,
-      anchor.effective_until
+      anchor.effective_until,
+      anchor.buffer_after_minutes
     );
 
   return getAnchor(studentId, info.lastInsertRowid);
@@ -123,7 +150,7 @@ export function updateAnchor(studentId, anchorId, changes) {
     .prepare(
       `UPDATE anchor
          SET label = ?, type = ?, day_of_week = ?, start_time = ?, end_time = ?, is_active = ?,
-             effective_from = ?, effective_until = ?
+             effective_from = ?, effective_until = ?, buffer_after_minutes = ?
        WHERE id = ? AND student_id = ?`
     )
     .run(
@@ -135,6 +162,7 @@ export function updateAnchor(studentId, anchorId, changes) {
       isActive ? 1 : 0,
       merged.effective_from,
       merged.effective_until,
+      merged.buffer_after_minutes,
       anchorId,
       studentId
     );
@@ -163,14 +191,22 @@ export function addStarterWeek(studentId) {
   }
 
   const insert = db.prepare(
-    `INSERT INTO anchor (student_id, label, type, day_of_week, start_time, end_time, is_active)
-     VALUES (?, ?, ?, ?, ?, ?, 1)`
+    `INSERT INTO anchor (student_id, label, type, day_of_week, start_time, end_time, is_active, buffer_after_minutes)
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?)`
   );
 
   const addAll = db.transaction(() => {
     for (const template of STARTER_WEEK) {
       for (const day of template.days) {
-        insert.run(studentId, template.label, template.type, day, template.start_time, template.end_time);
+        insert.run(
+          studentId,
+          template.label,
+          template.type,
+          day,
+          template.start_time,
+          template.end_time,
+          template.buffer_after_minutes ?? null
+        );
       }
     }
   });

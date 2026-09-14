@@ -94,6 +94,16 @@ export const api = {
       request('/templates/unassign', { method: 'POST', body: { weeks } }).then((r) => r.templates),
   },
 
+  studyBlocks: {
+    list: () => request('/study-blocks').then((r) => r.blocks),
+    propose: () => request('/study-blocks/propose').then((r) => r.blocks),
+    save: (blocks) => request('/study-blocks', { method: 'PUT', body: { blocks } }).then((r) => r.blocks),
+    create: (block) => request('/study-blocks', { method: 'POST', body: block }).then((r) => r.block),
+    update: (id, changes) =>
+      request(`/study-blocks/${id}`, { method: 'PATCH', body: changes }).then((r) => r.block),
+    remove: (id) => request(`/study-blocks/${id}`, { method: 'DELETE' }),
+  },
+
   plan: {
     list: (from, to) => request(`/plan${query({ from, to })}`).then((r) => r.entries),
     unscheduled: () => request('/plan/unscheduled').then((r) => r.topics),

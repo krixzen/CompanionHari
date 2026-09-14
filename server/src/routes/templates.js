@@ -31,6 +31,7 @@ const readBlock = (body) => ({
   start_time: body.start_time,
   end_time: body.end_time,
   ...(body.is_active === undefined ? {} : { is_active: body.is_active }),
+  ...(body.buffer_after_minutes === undefined ? {} : { buffer_after_minutes: body.buffer_after_minutes }),
 });
 
 templatesRouter.get('/', (req, res) => {

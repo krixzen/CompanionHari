@@ -15,7 +15,7 @@
 import { getDb } from '../db/index.js';
 import { badRequest, notFound } from '../lib/httpError.js';
 import { toMinutes, weekBounds, weekNumberForDate } from '../lib/time.js';
-import { ANCHOR_TYPES, listAnchors } from './anchorService.js';
+import { ANCHOR_TYPES, listAnchors, readBufferMinutes } from './anchorService.js';
 import { getTermSettings } from './settingsService.js';
 
 function getTemplate(studentId, templateId) {
@@ -80,7 +80,14 @@ export function deleteTemplate(studentId, templateId) {
   return { deleted: templateId };
 }
 
-function validateBlock({ label, type, day_of_week: day, start_time: start, end_time: end }) {
+function validateBlock({
+  label,
+  type,
+  day_of_week: day,
+  start_time: start,
+  end_time: end,
+  buffer_after_minutes: bufferAfter,
+}) {
   if (!label || !String(label).trim()) throw badRequest('Give the block a name.');
   if (!ANCHOR_TYPES.includes(type)) throw badRequest(`"type" must be one of: ${ANCHOR_TYPES.join(', ')}.`);
   if (!Number.isInteger(day) || day < 0 || day > 6) throw badRequest('Pick a day of the week.');
@@ -95,7 +102,14 @@ function validateBlock({ label, type, day_of_week: day, start_time: start, end_t
     );
   }
 
-  return { label: String(label).trim().slice(0, 120), type, day_of_week: day, start_time: start, end_time: end };
+  return {
+    label: String(label).trim().slice(0, 120),
+    type,
+    day_of_week: day,
+    start_time: start,
+    end_time: end,
+    buffer_after_minutes: readBufferMinutes(bufferAfter),
+  };
 }
 
 function getBlock(studentId, templateId, blockId) {
@@ -112,10 +126,19 @@ export function addBlock(studentId, templateId, input) {
   const block = validateBlock(input);
   const info = getDb()
     .prepare(
-      `INSERT INTO week_template_block (template_id, label, type, day_of_week, start_time, end_time, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, 1)`
+      `INSERT INTO week_template_block
+         (template_id, label, type, day_of_week, start_time, end_time, is_active, buffer_after_minutes)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?)`
     )
-    .run(templateId, block.label, block.type, block.day_of_week, block.start_time, block.end_time);
+    .run(
+      templateId,
+      block.label,
+      block.type,
+      block.day_of_week,
+      block.start_time,
+      block.end_time,
+      block.buffer_after_minutes
+    );
   return getBlock(studentId, templateId, info.lastInsertRowid);
 }
 
@@ -127,7 +150,8 @@ export function updateBlock(studentId, templateId, blockId, changes) {
   getDb()
     .prepare(
       `UPDATE week_template_block
-         SET label = ?, type = ?, day_of_week = ?, start_time = ?, end_time = ?, is_active = ?
+         SET label = ?, type = ?, day_of_week = ?, start_time = ?, end_time = ?, is_active = ?,
+             buffer_after_minutes = ?
        WHERE id = ? AND template_id = ?`
     )
     .run(
@@ -137,6 +161,7 @@ export function updateBlock(studentId, templateId, blockId, changes) {
       merged.start_time,
       merged.end_time,
       isActive ? 1 : 0,
+      merged.buffer_after_minutes,
       blockId,
       templateId
     );
@@ -234,6 +259,7 @@ export function resolveEffectiveAnchors(studentId, dates) {
         is_active: block.is_active,
         effective_from: from,
         effective_until: until,
+        buffer_after_minutes: block.buffer_after_minutes,
       });
     }
   }

@@ -15,27 +15,37 @@ export function usePlanner(mondayIso) {
   const [term, setTerm] = useState(null);
   const [unscheduled, setUnscheduled] = useState([]);
   const [needsRevision, setNeedsRevision] = useState([]);
+  const [studyBlocks, setStudyBlocks] = useState([]);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     setStatus('loading');
     try {
-      const [loadedEntries, loadedAnchors, loadedSettings, loadedTerm, loadedUnscheduled, loadedNeedsRevision] =
-        await Promise.all([
-          api.plan.list(mondayIso, addDays(mondayIso, 6)),
-          api.anchors.effective(mondayIso, addDays(mondayIso, 6)),
-          api.settings.planner(),
-          api.settings.term(),
-          api.plan.unscheduled(),
-          api.plan.needsRevision(),
-        ]);
+      const [
+        loadedEntries,
+        loadedAnchors,
+        loadedSettings,
+        loadedTerm,
+        loadedUnscheduled,
+        loadedNeedsRevision,
+        loadedStudyBlocks,
+      ] = await Promise.all([
+        api.plan.list(mondayIso, addDays(mondayIso, 6)),
+        api.anchors.effective(mondayIso, addDays(mondayIso, 6)),
+        api.settings.planner(),
+        api.settings.term(),
+        api.plan.unscheduled(),
+        api.plan.needsRevision(),
+        api.studyBlocks.list(),
+      ]);
       setEntries(loadedEntries);
       setAnchors(loadedAnchors);
       setSettings(loadedSettings);
       setTerm(loadedTerm);
       setUnscheduled(loadedUnscheduled);
       setNeedsRevision(loadedNeedsRevision);
+      setStudyBlocks(loadedStudyBlocks);
       setStatus('ready');
       setError(null);
     } catch (caught) {
@@ -71,6 +81,7 @@ export function usePlanner(mondayIso) {
     term,
     unscheduled,
     needsRevision,
+    studyBlocks,
     status,
     error,
     reload: load,

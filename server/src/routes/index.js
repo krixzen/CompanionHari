@@ -6,6 +6,7 @@ import { progressRouter } from './progress.js';
 import { sessionsRouter } from './sessions.js';
 import { settingsRouter } from './settings.js';
 import { studentsRouter } from './students.js';
+import { studyBlocksRouter } from './studyBlocks.js';
 import { subjectsRouter } from './subjects.js';
 import { syllabusRouter } from './syllabus.js';
 import { templatesRouter } from './templates.js';
@@ -21,6 +22,7 @@ export function createApiRouter() {
   router.use('/syllabus', syllabusRouter);
   router.use('/anchors', anchorsRouter);
   router.use('/templates', templatesRouter);
+  router.use('/study-blocks', studyBlocksRouter);
   router.use('/plan', planRouter);
   router.use('/settings', settingsRouter);
   router.use('/sessions', sessionsRouter);
