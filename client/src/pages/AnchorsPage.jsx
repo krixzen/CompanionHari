@@ -18,6 +18,7 @@ const blank = {
   day_of_week: 0,
   start_time: '16:00',
   end_time: '17:00',
+  buffer_after_minutes: '',
   days: [0],
   scope: 'always', // 'always' | 'weeks'
   weeks: [],
@@ -251,6 +252,7 @@ export default function AnchorsPage() {
                             <p className="truncate text-sm text-ink">{anchor.label}</p>
                             <p className="text-[11px] text-ink-faint">
                               {friendlyTime(anchor.start_time)}–{friendlyTime(anchor.end_time)}
+                              {anchor.buffer_after_minutes ? ` (+${anchor.buffer_after_minutes} min travel)` : ''}
                               {anchor.effective_from && (
                                 <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-ink-soft">
                                   Week {weekNumberForDate(term?.start_date ?? todayIso(), anchor.effective_from)} only
@@ -555,6 +557,7 @@ function TemplateCard({ template, weekSummary, onAddBlock, onEditBlock, onDelete
                   <p className="truncate text-sm text-ink">{block.label}</p>
                   <p className="text-[11px] text-ink-faint">
                     {friendlyTime(block.start_time)}–{friendlyTime(block.end_time)}
+                    {block.buffer_after_minutes ? ` (+${block.buffer_after_minutes} min travel)` : ''}
                   </p>
                 </div>
                 <button
@@ -641,7 +644,14 @@ function NewTemplateDialog({ open, onClose, onCreate }) {
   );
 }
 
-const blankBlock = { label: '', type: 'other', days: [0], start_time: '16:00', end_time: '17:00' };
+const blankBlock = {
+  label: '',
+  type: 'other',
+  days: [0],
+  start_time: '16:00',
+  end_time: '17:00',
+  buffer_after_minutes: '',
+};
 
 /** Adds or edits one block inside a week pattern — no week-scope here, that happens at the template level. */
 function TemplateBlockDialog({ template, block, open, onClose, onSaved }) {
@@ -651,7 +661,11 @@ function TemplateBlockDialog({ template, block, open, onClose, onSaved }) {
 
   useEffect(() => {
     if (!open) return;
-    setDraft(block ? { ...block, days: [block.day_of_week] } : { ...blankBlock });
+    setDraft(
+      block
+        ? { ...block, days: [block.day_of_week], buffer_after_minutes: block.buffer_after_minutes ?? '' }
+        : { ...blankBlock }
+    );
     setError(null);
   }, [open, block]);
 
@@ -683,6 +697,7 @@ function TemplateBlockDialog({ template, block, open, onClose, onSaved }) {
         type: draft.type,
         start_time: draft.start_time,
         end_time: draft.end_time,
+        buffer_after_minutes: draft.buffer_after_minutes === '' ? null : Number(draft.buffer_after_minutes),
       };
 
       if (block) {
@@ -781,6 +796,21 @@ function TemplateBlockDialog({ template, block, open, onClose, onSaved }) {
             />
           </Field>
         </div>
+
+        <Field
+          label="Travel time after (mins)"
+          hint="Add a few minutes if this isn't at home, so nothing gets scheduled the instant it ends — lunch after school, say."
+        >
+          <TextInput
+            type="number"
+            min="0"
+            max="120"
+            step="5"
+            value={draft.buffer_after_minutes}
+            placeholder="0"
+            onChange={(event) => setDraft({ ...draft, buffer_after_minutes: event.target.value })}
+          />
+        </Field>
 
         <p className="text-xs text-ink-faint">
           Something that runs past midnight, like sleep, goes in as two blocks — one up to 23:59 and
@@ -907,6 +937,7 @@ function AnchorDialog({ anchor, term, open, onClose, onSaved }) {
       setDraft({
         ...anchor,
         days: [anchor.day_of_week],
+        buffer_after_minutes: anchor.buffer_after_minutes ?? '',
         scope: anchor.effective_from ? 'weeks' : 'always',
         weeks: anchor.effective_from ? [weekNumberForDate(termStart, anchor.effective_from)] : [],
       });
@@ -963,6 +994,7 @@ function AnchorDialog({ anchor, term, open, onClose, onSaved }) {
         type: draft.type,
         start_time: draft.start_time,
         end_time: draft.end_time,
+        buffer_after_minutes: draft.buffer_after_minutes === '' ? null : Number(draft.buffer_after_minutes),
       };
 
       // "Every week" clears any range; picking specific weeks sets one. An
@@ -1085,6 +1117,21 @@ function AnchorDialog({ anchor, term, open, onClose, onSaved }) {
             />
           </Field>
         </div>
+
+        <Field
+          label="Travel time after (mins)"
+          hint="Add a few minutes if this isn't at home, so nothing gets scheduled the instant it ends."
+        >
+          <TextInput
+            type="number"
+            min="0"
+            max="120"
+            step="5"
+            value={draft.buffer_after_minutes}
+            placeholder="0"
+            onChange={(event) => setDraft({ ...draft, buffer_after_minutes: event.target.value })}
+          />
+        </Field>
 
         <p className="text-xs text-ink-faint">
           Something that runs past midnight, like sleep, goes in as two commitments — one up to

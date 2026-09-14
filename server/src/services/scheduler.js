@@ -32,8 +32,12 @@ export function buildBusyMap(dates, anchors, entries, { entryPadding = 0 } = {})
   for (const anchor of anchors) {
     if (!anchor.is_active) continue;
     const start = toMinutes(anchor.start_time);
-    const end = toMinutes(anchor.end_time);
-    if (start === null || end === null || end <= start) continue;
+    const rawEnd = toMinutes(anchor.end_time);
+    if (start === null || rawEnd === null || rawEnd <= start) continue;
+    // A commitment away from home isn't over the moment it ends — the trip
+    // back takes a few minutes too, even though nothing on the calendar
+    // names that time separately.
+    const end = rawEnd + (Number(anchor.buffer_after_minutes) || 0);
     if (!byDay.has(anchor.day_of_week)) byDay.set(anchor.day_of_week, []);
     byDay.get(anchor.day_of_week).push({ start, end, from: anchor.effective_from, until: anchor.effective_until });
   }

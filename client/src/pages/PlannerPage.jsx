@@ -641,7 +641,7 @@ export default function PlannerPage() {
           onDismiss={() => setMealDraft(null)}
           saving={savingMeals}
           noun="meal time"
-          description="Lunch and dinner aren't fixed any more — these are just for this stretch. Adjust anything, or untick what you don't want."
+          description="Breakfast, lunch and dinner aren't fixed any more — these are just for this stretch. Adjust anything, or untick what you don't want."
         />
       )}
 

@@ -287,6 +287,20 @@ category to call something "Aakash Coaching," "Football," or "Movie Time";
 just type that as the name and pick whichever **kind** (School, Coaching,
 Sport, Meal, Family, Sleep, Exam, Other) fits closest for its colour.
 
+### Travel time after a commitment
+School doesn't end the moment the bell rings — there's a walk or a drive
+home before anything is actually free, and the same goes for coaching or
+any other commitment away from home. Give a block a **Travel time after
+(mins)** on its edit dialog (0–120 minutes, optional) and the planner treats
+that time as spoken for too, without adding a separate visible entry for it:
+nothing gets scheduled the instant School or Coaching ends on paper. The
+block's row shows "+N min travel" once set, and both the deterministic
+planner and the assistant respect it — busy-time lines the assistant sees
+say "plus N min travel after — not free until then," and it's told
+explicitly that lunch in particular usually happens at home after school,
+not at school. This works the same way on week-pattern blocks and on
+one-off extras.
+
 ### Anything extra — on top of whichever pattern applies
 Below the week patterns sits a second, additive layer for things that are
 not part of any regular week: an exam sitting, a one-off extra class,
@@ -423,16 +437,17 @@ rather than meeting the material fresh. The review list lets you change any
 block between Study and Practice before saving, or leave either out
 entirely.
 
-### Lunch, dinner, family time and leisure — planned rather than fixed
-Lunch, dinner, family time and leisure aren't part of the default week
-pattern — instead, every time the assistant plans a stretch, it also
-proposes them: a lunch and a dinner for each day, fitted around everything
-else rather than pinned to the same slot regardless of what the day
-actually looks like, plus a mix of family time and pure leisure (free time,
-phone, TV — a student who only ever studies burns out) wherever it judges a
-gap is worth protecting. Family time and leisure don't need to show up
-every day the way meals do; a solid stretch on a couple of days beats a
-token five minutes on all of them.
+### Breakfast, lunch, dinner, family time and leisure — planned rather than fixed
+Meals, family time and leisure aren't part of the default week pattern —
+instead, every time the assistant plans a stretch, it also proposes them: a
+breakfast, lunch and dinner for each day, fitted around everything else
+rather than pinned to the same slot regardless of what the day actually
+looks like, plus a mix of family time and pure leisure (free time, phone,
+TV — a student who only ever studies burns out) wherever it judges a gap is
+worth protecting. The assistant is told this isn't optional — every day
+should have at least a little unstructured time in it. Family time and
+leisure don't need to show up every day the way meals do; a solid stretch on
+a couple of days beats a token five minutes on all of them.
 
 These come back in their own review lists underneath the study blocks —
 meals in one, family/leisure in another — same tick-and-adjust shape as
