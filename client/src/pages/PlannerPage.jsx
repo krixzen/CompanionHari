@@ -54,6 +54,7 @@ export default function PlannerPage() {
   const [monday, setMonday] = useState(() => startOfWeek(today));
   const [selectedDay, setSelectedDay] = useState(today);
   const [viewMode, setViewMode] = useState('week'); // 'week' | 'day' — a phone is always 'day' regardless
+  const [calendarView, setCalendarView] = useState('full'); // 'full' | 'study' — 'study' shows only study-time windows
 
   const isNarrow = useMediaQuery('(max-width: 767px)');
   const { refreshSubjects } = useStudyData();
@@ -126,6 +127,27 @@ export default function PlannerPage() {
   const dates = useMemo(() => weekDates(monday), [monday]);
   const showingOneDay = isNarrow || viewMode === 'day';
   const visibleDates = showingOneDay ? [selectedDay] : dates;
+
+  // A decluttered second view of the same calendar: only the windows the
+  // student has actually agreed are for studying, none of the school,
+  // coaching, meal or sleep washes underneath them — the blocks scheduled
+  // inside still show, so this doubles as "is my study time being used."
+  const studyBlockAnchors = useMemo(
+    () =>
+      studyBlocks
+        .filter((block) => block.is_active)
+        .map((block) => ({
+          id: `study-${block.id}`,
+          label: 'Study time',
+          type: 'study',
+          day_of_week: block.day_of_week,
+          start_time: block.start_time,
+          end_time: block.end_time,
+          is_active: true,
+        })),
+    [studyBlocks]
+  );
+  const visibleAnchors = calendarView === 'study' ? studyBlockAnchors : anchors;
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -527,10 +549,49 @@ export default function PlannerPage() {
             </button>
           </div>
         )}
+        {studyBlocks.length > 0 && (
+          <div
+            className="flex gap-1 rounded-full bg-paper-sunk p-0.5"
+            role="group"
+            aria-label="Show everything, or only study time"
+          >
+            <button
+              type="button"
+              onClick={() => setCalendarView('full')}
+              aria-pressed={calendarView === 'full'}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                calendarView === 'full' ? 'bg-sage-600 text-white' : 'text-ink-soft hover:bg-sage-100'
+              }`}
+            >
+              Full
+            </button>
+            <button
+              type="button"
+              onClick={() => setCalendarView('study')}
+              aria-pressed={calendarView === 'study'}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                calendarView === 'study' ? 'bg-sage-600 text-white' : 'text-ink-soft hover:bg-sage-100'
+              }`}
+            >
+              Study time only
+            </button>
+          </div>
+        )}
         <Button size="sm" variant="ghost" onClick={() => setClearOpen(true)} className="ml-auto">
           Clear unfinished
         </Button>
       </div>
+
+      {calendarView === 'study' && (
+        <p className="mb-4 -mt-2 text-xs text-ink-faint">
+          Just the windows you've agreed are for studying — what's booked inside them still shows, everything
+          else (school, coaching, meals, sleep…) is hidden.{' '}
+          <Link to="/anchors" className="text-sage-700 underline-offset-2 hover:underline">
+            Edit study time
+          </Link>
+          .
+        </p>
+      )}
 
       {noAnchors && (
         <Card className="mb-4 p-4">
@@ -578,7 +639,7 @@ export default function PlannerPage() {
           <WeekGrid
             dates={visibleDates}
             entries={entries}
-            anchors={anchors}
+            anchors={visibleAnchors}
             settings={settings}
             today={today}
             onOpenEntry={setOpenEntry}
