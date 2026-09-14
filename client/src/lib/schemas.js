@@ -139,7 +139,7 @@ export const schedulePlanSchema = {
           date: { type: 'string', minLength: 10, maxLength: 10 },
           start_time: { type: 'string', minLength: 4, maxLength: 5 },
           duration_minutes: { type: 'integer', minimum: 5, maximum: 480 },
-          session_type: { type: 'string', enum: ['study', 'practice'] },
+          session_type: { type: 'string', enum: ['study', 'practice', 'revision'] },
           note: { type: ['string', 'null'], maxLength: 200 },
         },
       },

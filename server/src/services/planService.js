@@ -339,10 +339,36 @@ export function listUnscheduledTopics(studentId) {
        FROM topic t
        JOIN subject s ON s.id = t.subject_id
        WHERE s.student_id = ?
-         AND t.status != 'mastered'
+         AND t.status NOT IN ('revised', 'mastered')
          AND NOT EXISTS (
            SELECT 1 FROM plan_entry p
            WHERE p.topic_id = t.id AND p.entry_type = 'study' AND p.completed = 0
+         )
+       ORDER BY (t.target_date IS NULL), t.target_date, s.display_order, t.display_order, t.id`
+    )
+    .all(studentId)
+    .map((topic) => ({ ...topic, sub_topics: JSON.parse(topic.sub_topics ?? '[]') }));
+}
+
+/**
+ * Topics marked "Revised" — already covered, whether that happened through
+ * this app or before it, e.g. starting the app mid-term — that don't
+ * already have a revision sitting waiting on the calendar. Kept separate
+ * from listUnscheduledTopics because these need revision, not a first pass.
+ */
+export function listTopicsNeedingRevision(studentId) {
+  return getDb()
+    .prepare(
+      `SELECT t.id, t.tracking_number, t.title, t.sub_topics, t.allocated_duration_minutes, t.difficulty,
+              t.target_date, t.status,
+              s.name AS subject_name, s.colour AS subject_colour, s.code AS subject_code
+       FROM topic t
+       JOIN subject s ON s.id = t.subject_id
+       WHERE s.student_id = ?
+         AND t.status = 'revised'
+         AND NOT EXISTS (
+           SELECT 1 FROM plan_entry p
+           WHERE p.topic_id = t.id AND p.entry_type = 'revision' AND p.completed = 0
          )
        ORDER BY (t.target_date IS NULL), t.target_date, s.display_order, t.display_order, t.id`
     )

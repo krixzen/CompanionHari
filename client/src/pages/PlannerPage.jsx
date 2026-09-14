@@ -65,6 +65,7 @@ export default function PlannerPage() {
     settings,
     term,
     unscheduled,
+    needsRevision,
     status,
     error,
     reload,
@@ -229,12 +230,19 @@ export default function PlannerPage() {
    */
   const resolveScheduleDraft = (data) => {
     let key = 0;
+    const entryType = (sessionType) =>
+      sessionType === 'practice' ? 'practice' : sessionType === 'revision' ? 'revision' : 'study';
+
     return data.entries.map((entry) => {
       const match = entry.tracking_number.match(/^(.*)\/(\d{1,2})$/);
       const baseNumber = match ? match[1] : entry.tracking_number;
       const subTopicIndex = match ? Number(match[2]) - 1 : null;
 
-      const baseTopic = unscheduled.find((candidate) => candidate.tracking_number === baseNumber);
+      // A "revision" sitting names an already-covered topic, which by then
+      // has dropped off the "waiting to be studied" list — look there too.
+      const baseTopic =
+        unscheduled.find((candidate) => candidate.tracking_number === baseNumber) ??
+        needsRevision.find((candidate) => candidate.tracking_number === baseNumber);
       const inRange = subTopicIndex === null || (baseTopic && subTopicIndex < baseTopic.sub_topics.length);
       const topic = inRange ? baseTopic : undefined;
 
@@ -245,7 +253,7 @@ export default function PlannerPage() {
         sub_topic_index: inRange ? subTopicIndex : null,
         sub_topic_title: topic && subTopicIndex !== null ? topic.sub_topics[subTopicIndex] : null,
         include: Boolean(topic),
-        entry_type: entry.session_type === 'practice' ? 'practice' : 'study',
+        entry_type: entryType(entry.session_type),
         scheduled_date: entry.date,
         scheduled_start_time: entry.start_time,
         scheduled_duration_minutes: entry.duration_minutes,
@@ -708,6 +716,7 @@ export default function PlannerPage() {
           to: scheduleContext.to,
           anchors: scheduleContext.anchors,
           topics: unscheduled,
+          needsRevision,
           existingEntries: scheduleContext.entries,
           settings,
           examDate: term?.exam_date,

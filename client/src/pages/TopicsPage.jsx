@@ -158,6 +158,20 @@ export default function TopicsPage() {
     }
   };
 
+  const applyBulkStatus = async (status) => {
+    try {
+      const count = selected.size;
+      await api.topics.bulkUpdate([...selected], { status });
+      setSelected(new Set());
+      await afterChange();
+      toast.celebrate(
+        `${count} topic${count === 1 ? '' : 's'} marked "${STATUS_LABELS[status]}". Planning skips a topic once it's past Learning, and leans on revision instead.`
+      );
+    } catch (caught) {
+      toast.warn(caught.message);
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -252,7 +266,8 @@ export default function TopicsPage() {
       {selected.size > 0 && (
         <BulkBar
           count={selected.size}
-          onApply={applyBulkDuration}
+          onApplyDuration={applyBulkDuration}
+          onApplyStatus={applyBulkStatus}
           onClear={() => setSelected(new Set())}
         />
       )}
@@ -504,43 +519,60 @@ function TopicRow({
 
 const QUICK_DURATIONS = [30, 45, 60, 90, 120];
 
-function BulkBar({ count, onApply, onClear }) {
+function BulkBar({ count, onApplyDuration, onApplyStatus, onClear }) {
   const [custom, setCustom] = useState('');
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl2 bg-sage-50 px-4 py-3 text-sm">
-      <span className="font-medium text-sage-800">
-        {count} selected — set study time to
-      </span>
-      {QUICK_DURATIONS.map((minutes) => (
-        <Button key={minutes} size="sm" onClick={() => onApply(minutes)}>
-          {formatMinutes(minutes)}
+    <div className="mb-4 space-y-3 rounded-xl2 bg-sage-50 px-4 py-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium text-sage-800">{count} selected</span>
+        <Button size="sm" variant="ghost" onClick={onClear} className="ml-auto">
+          Clear selection
         </Button>
-      ))}
-      <span className="flex items-center gap-1">
-        <input
-          type="number"
-          min="5"
-          max="1440"
-          step="5"
-          value={custom}
-          placeholder="other"
-          onChange={(event) => setCustom(event.target.value)}
-          aria-label="Custom study minutes"
-          className="w-20 rounded-lg border border-black/10 bg-paper-raised px-2 py-1 text-sm focus:border-sage-400 focus:outline-none"
-        />
-        <Button
-          size="sm"
-          variant="primary"
-          disabled={!custom || Number(custom) < 5}
-          onClick={() => onApply(Number(custom))}
-        >
-          Apply
-        </Button>
-      </span>
-      <Button size="sm" variant="ghost" onClick={onClear} className="ml-auto">
-        Clear selection
-      </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-ink-soft">Already covered — mark as</span>
+        {STATUS_ORDER.map((value) => (
+          <Button key={value} size="sm" onClick={() => onApplyStatus(value)}>
+            {STATUS_LABELS[value]}
+          </Button>
+        ))}
+      </div>
+      <p className="text-xs text-ink-faint">
+        "Revised" or "Confident" takes a topic out of the queue for fresh study — planning covers it
+        with revision instead, at whatever level it's already at.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-ink-soft">Set study time to</span>
+        {QUICK_DURATIONS.map((minutes) => (
+          <Button key={minutes} size="sm" onClick={() => onApplyDuration(minutes)}>
+            {formatMinutes(minutes)}
+          </Button>
+        ))}
+        <span className="flex items-center gap-1">
+          <input
+            type="number"
+            min="5"
+            max="1440"
+            step="5"
+            value={custom}
+            placeholder="other"
+            onChange={(event) => setCustom(event.target.value)}
+            aria-label="Custom study minutes"
+            className="w-20 rounded-lg border border-black/10 bg-paper-raised px-2 py-1 text-sm focus:border-sage-400 focus:outline-none"
+          />
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={!custom || Number(custom) < 5}
+            onClick={() => onApplyDuration(Number(custom))}
+          >
+            Apply
+          </Button>
+        </span>
+      </div>
     </div>
   );
 }

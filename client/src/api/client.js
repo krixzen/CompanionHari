@@ -97,6 +97,7 @@ export const api = {
   plan: {
     list: (from, to) => request(`/plan${query({ from, to })}`).then((r) => r.entries),
     unscheduled: () => request('/plan/unscheduled').then((r) => r.topics),
+    needsRevision: () => request('/plan/needs-revision').then((r) => r.topics),
     create: (entry) => request('/plan', { method: 'POST', body: entry }),
     update: (id, changes) => request(`/plan/${id}`, { method: 'PATCH', body: changes }),
     remove: (id) => request(`/plan/${id}`, { method: 'DELETE' }),
