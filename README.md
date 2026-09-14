@@ -555,6 +555,17 @@ topic's own three-way badges (**Study/Practice/Revision**, see above) make
 it easy to see afterwards which of these catch-up revisions have actually
 happened.
 
+### A daily habit: what did class cover today?
+**Home** carries a standing card, **"Covered in class today?"** — every
+topic still `Not started` or `Learning`, across every subject, one flat
+searchable list rather than subject by subject. Tick whatever class got
+through today, whether or not you've personally sat down with it yet, and
+**Mark covered** does the same thing as the bulk action above: the topic
+moves to `Revised`, drops out of the queue for fresh study, and picks up a
+revision sitting next time a schedule gets planned. The card is only there
+when there's something left to log — once every topic has been marked at
+some point, it stops showing up.
+
 Sub-topics carry their own number too — `PHY-001/01`, `PHY-001/02` — shown
 wherever a topic's sub-topics are listed, on the topic list and when editing
 one. It is positional: it reflects where a sub-topic currently sits in the

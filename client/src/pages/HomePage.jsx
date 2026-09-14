@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../components/AppShell.jsx';
 import { ProgressBar, SubjectDot } from '../components/bits.jsx';
+import { ClassLogCard } from '../components/ClassLogCard.jsx';
 import { TodayPanel } from '../components/TodayPanel.jsx';
 import { Button, Card, ErrorNote, Field, Spinner, TextInput } from '../components/ui.jsx';
 import { useStudyData } from '../hooks/useStudyData.jsx';
@@ -53,6 +54,8 @@ export default function HomePage() {
       )}
 
       <TodayPanel onChanged={refreshSubjects} />
+
+      <ClassLogCard onChanged={refreshSubjects} />
 
       <section>
         <div className="mb-3 flex items-end justify-between">
