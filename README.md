@@ -322,12 +322,16 @@ different single week.
 **Week** shows seven columns with the hours down the side, or switch to
 **Day** (next to Previous/This week/Next) for one day at a time with a row
 of day chips to jump between them — a phone is always in Day view, since a
-week of columns has nowhere to go on a small screen. Commitments sit behind
-everything as soft washes; blocks show just their subject and time, kept
-deliberately plain so the calendar reads at a glance — tap one for the full
-picture (topic, sub-topic, notes, tick-off). Study blocks are solid cards in
-their subject's colour; revision blocks are outlined and marked with ↻;
-practice blocks are dotted and marked with ✎.
+week of columns has nowhere to go on a small screen. Sized to read like a
+real calendar app rather than a cramped widget — tall hour rows, and a red
+line marking right now on today's column, the same as Outlook or Google
+Calendar — with the grid itself scrolling within the page rather than the
+whole page scrolling past it. Commitments sit behind everything as soft
+washes; blocks show just their subject and time, kept deliberately plain
+so the calendar reads at a glance — tap one for the full picture (topic,
+sub-topic, notes, tick-off). Study blocks are solid cards in their
+subject's colour; revision blocks are outlined and marked with ↻; practice
+blocks are dotted and marked with ✎.
 
 - **Drag a block** to another day or time. Dropping snaps to the nearest five
   minutes.
