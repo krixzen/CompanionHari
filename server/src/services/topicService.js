@@ -24,6 +24,47 @@ export function toTopic(row) {
   };
 }
 
+const PLAN_ENTRY_TYPES = ['study', 'practice', 'revision'];
+
+const blankPlanSummary = () => ({
+  study: { total: 0, completed: 0 },
+  practice: { total: 0, completed: 0 },
+  revision: { total: 0, completed: 0 },
+});
+
+/**
+ * How much of each topic's plan has actually happened, broken down by kind —
+ * study (first pass), practice, and revision — so a subject or a topic can
+ * be checked against the three-layer split rather than just a single
+ * not-started/in-progress/revised/mastered status.
+ */
+export function getPlanSummaries(studentId, topicIds) {
+  const summaries = {};
+  for (const id of topicIds) summaries[id] = blankPlanSummary();
+  if (topicIds.length === 0) return summaries;
+
+  const placeholders = topicIds.map(() => '?').join(',');
+  const rows = getDb()
+    .prepare(
+      `SELECT p.topic_id, p.entry_type, p.completed, COUNT(*) AS count
+       FROM plan_entry p
+       JOIN topic t ON t.id = p.topic_id
+       JOIN subject s ON s.id = t.subject_id
+       WHERE s.student_id = ? AND p.topic_id IN (${placeholders})
+       GROUP BY p.topic_id, p.entry_type, p.completed`
+    )
+    .all(studentId, ...topicIds);
+
+  for (const row of rows) {
+    if (!PLAN_ENTRY_TYPES.includes(row.entry_type)) continue;
+    const bucket = summaries[row.topic_id][row.entry_type];
+    bucket.total += row.count;
+    if (row.completed) bucket.completed += row.count;
+  }
+
+  return summaries;
+}
+
 export function listTopics(studentId, { subjectId, status, difficulty, search } = {}) {
   const db = getDb();
 
@@ -53,7 +94,7 @@ export function listTopics(studentId, { subjectId, status, difficulty, search } 
     params.search = `%${search}%`;
   }
 
-  return db
+  const topics = db
     .prepare(
       `SELECT t.*, s.name AS subject_name, s.colour AS subject_colour, s.code AS subject_code
        FROM topic t
@@ -63,6 +104,9 @@ export function listTopics(studentId, { subjectId, status, difficulty, search } 
     )
     .all(params)
     .map(toTopic);
+
+  const summaries = getPlanSummaries(studentId, topics.map((topic) => topic.id));
+  return topics.map((topic) => ({ ...topic, plan_summary: summaries[topic.id] }));
 }
 
 export function getTopic(studentId, topicId) {
