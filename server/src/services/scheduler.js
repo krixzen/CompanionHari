@@ -9,7 +9,7 @@
  * what it chose.
  */
 
-import { dayOfWeek, freeRanges, toMinutes } from '../lib/time.js';
+import { MINUTES_IN_DAY, dayOfWeek, freeRanges, toMinutes } from '../lib/time.js';
 
 const roundTo5 = (value) => Math.round(value / 5) * 5;
 
@@ -27,7 +27,12 @@ export function revisionMinutes(minutes, settings) {
  * Builds a per-date picture of what is already spoken for: the active weekly
  * commitments for that weekday, plus anything already on the calendar.
  */
-export function buildBusyMap(dates, anchors, entries, { entryPadding = 0 } = {}) {
+export function buildBusyMap(
+  dates,
+  anchors,
+  entries,
+  { entryPadding = 0, studyWindowsByDay = null, dayWindow } = {}
+) {
   const byDay = new Map();
   for (const anchor of anchors) {
     if (!anchor.is_active) continue;
@@ -62,6 +67,20 @@ export function buildBusyMap(dates, anchors, entries, { entryPadding = 0 } = {})
       start,
       end: start + entry.scheduled_duration_minutes + entryPadding,
     });
+  }
+
+  // Once the student has approved a weekly set of study windows, everything
+  // outside them counts as busy too — subject scheduling only ever fills
+  // gaps actually set aside for it, not just whatever else is free.
+  if (studyWindowsByDay && studyWindowsByDay.size > 0) {
+    const windowStart = dayWindow?.start ?? 0;
+    const windowEnd = dayWindow?.end ?? MINUTES_IN_DAY;
+    for (const date of dates) {
+      const windows = studyWindowsByDay.get(dayOfWeek(date)) ?? [];
+      const outside = freeRanges(windowStart, windowEnd, windows);
+      if (!busy.has(date)) busy.set(date, []);
+      busy.get(date).push(...outside);
+    }
   }
 
   return busy;
@@ -115,11 +134,13 @@ function studyBudget(settings) {
     : settings.daily_max_minutes;
 }
 
-export function planTopics({ dates, anchors, existingEntries, topics, settings, notBefore }) {
+export function planTopics({ dates, anchors, existingEntries, topics, settings, notBefore, studyWindowsByDay }) {
   // A break belongs after every block, whether this run placed it or an
   // earlier one did.
   const busy = buildBusyMap(dates, anchors, existingEntries, {
     entryPadding: settings.break_minutes,
+    studyWindowsByDay,
+    dayWindow: { start: toMinutes(settings.day_start), end: toMinutes(settings.day_end) },
   });
 
   // Never schedule into hours that have already gone by today.

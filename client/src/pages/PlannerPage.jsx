@@ -66,6 +66,7 @@ export default function PlannerPage() {
     term,
     unscheduled,
     needsRevision,
+    studyBlocks,
     status,
     error,
     reload,
@@ -721,6 +722,7 @@ export default function PlannerPage() {
           settings,
           examDate: term?.exam_date,
           coverByDate: term?.cover_by_date,
+          studyBlocks,
         })}
         schema={schedulePlanSchema}
         saveLabel="Review this schedule"

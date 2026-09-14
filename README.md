@@ -360,9 +360,37 @@ doesn't get a badge — a topic with no practice booked shows Study and
 Revision only). Ticking a block off on the calendar is what moves these
 numbers; there's nothing separate to maintain.
 
+### Study time — what's left after everything else
+Fixed commitments say what the week already holds; **study time** (on the
+same Fixed Commitments page, below Week Patterns) says what's actually left
+over for studying, once school, coaching, meals and travel are subtracted
+out. It's a second, simpler layer underneath: one set of weekly windows,
+the same shape every week, that both "Plan my week" and the AI assistant
+are then restricted to — subject scheduling only ever fills time inside
+them, and a day left with none stays free rather than getting filled
+anyway.
+
+Press **Propose study times** and the app looks at the next two weeks of
+your fixed commitments, keeps only the gaps that are free on both, and
+hands back a draft — one row per free stretch, grouped by day. Nothing is
+saved yet: tick off what you don't want, nudge a start time or shorten one
+to fit how the day actually goes (a slot right after getting home deserves
+a later start than the calendar strictly allows for), then **Save study
+time**. This is the point of the whole feature — the student agreeing to
+the shape of their own week rather than the app deciding it for them.
+Add, edit or delete individual windows by hand afterwards the same way as
+anywhere else in the app, or press **Re-propose from scratch** to start
+over.
+
+Until you've set any study time, both planners behave exactly as before —
+free to use any open gap in the day. Once you have, they only place blocks
+inside it.
+
 ### Plan my week
-One button fills the week's free time. It works in a deliberately predictable
-order, so you can always see why it chose what it chose:
+One button fills the week's free time — inside your study-time windows,
+once you've set any; every open gap in the day otherwise. It works in a
+deliberately predictable order, so you can always see why it chose what it
+chose:
 
 1. topics with a target date, soonest first;
 2. then everything else in the order you arranged it, subject by subject.
@@ -378,9 +406,11 @@ today.
 ### Or let an assistant plan it
 **"Ask Claude or ChatGPT to plan it,"** next to Plan my week, hands the same
 job to a conversation instead of the built-in algorithm. It writes a prompt
-containing everything the app knows — your fixed commitments, anything
-already on the calendar, and every topic waiting for a slot — and asks for a
-day-by-day timetable back. The prompt itself asks for a realistic mix rather
+containing everything the app knows — your fixed commitments, any study
+time you've set, anything already on the calendar, and every topic waiting
+for a slot — and asks for a day-by-day timetable back. When study time is
+set, the assistant is told explicitly to place blocks only inside those
+windows, the same restriction "Plan my week" follows. The prompt itself asks for a realistic mix rather
 than a cram session: subjects interleaved instead of blocked for hours at a
 stretch, a topic's own sub-topics spread across days instead of chained
 one after another, and only the first sitting for each sub-topic — this app

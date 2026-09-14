@@ -292,6 +292,8 @@ export default function AnchorsPage() {
         )}
       </section>
 
+      <StudyBlocksSection />
+
       {(anchors.length > 0 || templates.some((template) => template.blocks.length > 0)) && (
         <p className="mt-6 text-sm text-ink-soft">
           Happy with this?{' '}
@@ -1218,6 +1220,325 @@ function AnchorDialog({ anchor, term, open, onClose, onSaved }) {
               )}
             </>
           )}
+        </div>
+
+        {error && <p className="text-sm text-amber-800">{error}</p>}
+      </div>
+    </Modal>
+  );
+}
+
+const durationLabel = (start, end) => {
+  const total = toMinutes(end) - toMinutes(start);
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  return hours > 0 ? `${hours}h${mins ? ` ${mins}m` : ''}` : `${mins}m`;
+};
+
+/**
+ * What's actually left for studying once everything else in the week is
+ * accounted for — a repeatable weekly shape the student agrees to, rather
+ * than the scheduler filling in whatever gap it finds. Proposing reads the
+ * next two weeks of fixed commitments but never writes anything; only
+ * saving what the student kept and adjusted does.
+ */
+function StudyBlocksSection() {
+  const toast = useToast();
+  const [blocks, setBlocks] = useState(null); // null while loading
+  const [proposing, setProposing] = useState(false);
+  const [draft, setDraft] = useState(null); // rows under review, or null
+  const [saving, setSaving] = useState(false);
+  const [editingBlock, setEditingBlock] = useState(null); // block or { day_of_week } for "new", or null
+  const [deletingBlock, setDeletingBlock] = useState(null);
+
+  const load = async () => setBlocks(await api.studyBlocks.list());
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  if (blocks === null) return null;
+
+  const byDay = DAY_LABELS.map((_, day) => blocks.filter((block) => block.day_of_week === day));
+
+  const propose = async () => {
+    setProposing(true);
+    try {
+      const proposed = await api.studyBlocks.propose();
+      if (proposed.length === 0) {
+        toast.warn('Nothing came back free — the week looks fully booked already.');
+        return;
+      }
+      setDraft(proposed.map((row, index) => ({ ...row, key: index, keep: true })));
+    } catch (caught) {
+      toast.warn(caught.message);
+    } finally {
+      setProposing(false);
+    }
+  };
+
+  const editDraftRow = (index, changes) =>
+    setDraft((current) => current.map((row, i) => (i === index ? { ...row, ...changes } : row)));
+
+  const saveDraft = async () => {
+    setSaving(true);
+    try {
+      const kept = draft
+        .filter((row) => row.keep)
+        .map(({ day_of_week, start_time, end_time }) => ({ day_of_week, start_time, end_time }));
+      const saved = await api.studyBlocks.save(kept);
+      setBlocks(saved);
+      setDraft(null);
+      toast.celebrate('Study time set — this same shape repeats every week until you change it.');
+    } catch (caught) {
+      toast.warn(caught.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="mb-8">
+      <PageHeader
+        eyebrow="What's left for studying"
+        title="Study time"
+        description="Once school, coaching, meals and travel are accounted for, these are the windows actually set aside for studying — the same shape every week. Subject scheduling only ever fills time inside them; a day left with none stays free."
+        actions={
+          <Button variant="primary" onClick={propose} disabled={proposing}>
+            {proposing ? 'Working it out…' : blocks.length > 0 ? 'Re-propose from scratch' : 'Propose study times'}
+          </Button>
+        }
+      />
+
+      {draft && (
+        <Card className="mb-4 p-4">
+          <h3 className="text-sm font-semibold text-ink">Here's what looks free — tick what you want, adjust the rest</h3>
+          <p className="mt-1 text-xs text-ink-faint">
+            Based on the next two weeks, kept only where it is free on both. Move a start time or shorten one to fit
+            real logistics, or untick anything you would rather keep as a break.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {draft.map((row, index) => (
+              <li
+                key={row.key}
+                className={`flex flex-wrap items-center gap-2 rounded-lg bg-black/[0.03] px-2 py-2 ${row.keep ? '' : 'opacity-50'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={row.keep}
+                  onChange={(event) => editDraftRow(index, { keep: event.target.checked })}
+                />
+                <span className="w-9 shrink-0 text-[11px] font-medium text-ink-soft">
+                  {DAY_LABELS[row.day_of_week].slice(0, 3)}
+                </span>
+                <input
+                  type="time"
+                  step="300"
+                  value={row.start_time}
+                  onChange={(event) => editDraftRow(index, { start_time: event.target.value })}
+                  className="rounded-lg border border-black/10 bg-white px-2 py-1 text-sm text-ink"
+                />
+                <span className="text-ink-faint">–</span>
+                <input
+                  type="time"
+                  step="300"
+                  value={row.end_time}
+                  onChange={(event) => editDraftRow(index, { end_time: event.target.value })}
+                  className="rounded-lg border border-black/10 bg-white px-2 py-1 text-sm text-ink"
+                />
+                <span className="text-[11px] text-ink-faint">{durationLabel(row.start_time, row.end_time)}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3 flex gap-2">
+            <Button variant="primary" onClick={saveDraft} disabled={saving}>
+              {saving ? 'Saving…' : 'Save study time'}
+            </Button>
+            <Button variant="ghost" onClick={() => setDraft(null)} disabled={saving}>
+              Discard
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {!draft && blocks.length === 0 && (
+        <EmptyState title="No study time set yet.">
+          Propose study times to see what's actually free once everything else is accounted for, then adjust and
+          save it. Until then, subject scheduling is free to use any open gap in the day, same as before.
+        </EmptyState>
+      )}
+
+      {!draft && blocks.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {DAY_LABELS.map((dayLabel, day) => (
+            <Card key={dayLabel} className="p-4">
+              <h2 className="text-sm font-semibold text-ink">{dayLabel}</h2>
+              {byDay[day].length === 0 ? (
+                <p className="mt-2 text-xs text-ink-faint">No study time this day.</p>
+              ) : (
+                <ul className="mt-2 space-y-1.5">
+                  {byDay[day].map((block) => (
+                    <li
+                      key={block.id}
+                      className={`flex items-center gap-2 rounded-lg bg-sage-50 px-2 py-1.5 ${block.is_active ? '' : 'opacity-50'}`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-ink">
+                          {friendlyTime(block.start_time)}–{friendlyTime(block.end_time)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingBlock(block)}
+                        className="text-[11px] text-ink-faint underline-offset-2 hover:text-ink hover:underline"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeletingBlock(block)}
+                        className="text-[11px] text-ink-faint underline-offset-2 hover:text-ink hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="mt-2"
+                onClick={() => setEditingBlock({ day_of_week: day, start_time: '16:00', end_time: '18:00' })}
+              >
+                Add a block
+              </Button>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <StudyBlockDialog
+        block={editingBlock}
+        open={Boolean(editingBlock)}
+        onClose={() => setEditingBlock(null)}
+        onSaved={async (message) => {
+          await load();
+          setEditingBlock(null);
+          toast.celebrate(message);
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deletingBlock)}
+        onClose={() => setDeletingBlock(null)}
+        onConfirm={async () => {
+          try {
+            await api.studyBlocks.remove(deletingBlock.id);
+            setDeletingBlock(null);
+            await load();
+            toast.celebrate('Removed.');
+          } catch (caught) {
+            toast.warn(caught.message);
+          }
+        }}
+        title="Remove this study time?"
+        confirmLabel="Remove it"
+      >
+        Subject scheduling will no longer use this window.
+      </ConfirmDialog>
+    </section>
+  );
+}
+
+/** Adds or edits one hand-picked study window — day, start and end only, nothing else to set. */
+function StudyBlockDialog({ block, open, onClose, onSaved }) {
+  const [draft, setDraft] = useState(null);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setDraft(block ? { ...block } : { day_of_week: 0, start_time: '16:00', end_time: '18:00' });
+    setError(null);
+  }, [open, block]);
+
+  if (!open || !draft) return null;
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const body = { day_of_week: draft.day_of_week, start_time: draft.start_time, end_time: draft.end_time };
+      if (draft.id) {
+        await api.studyBlocks.update(draft.id, body);
+        await onSaved('Updated.');
+      } else {
+        await api.studyBlocks.create(body);
+        await onSaved('Added.');
+      }
+    } catch (caught) {
+      setError(caught.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={draft.id ? 'Edit study time' : 'Add study time'}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={save} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div>
+          <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-ink-soft">Day</span>
+          <div className="flex flex-wrap gap-1.5">
+            {DAY_LABELS.map((label, day) => (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={draft.day_of_week === day}
+                onClick={() => setDraft((current) => ({ ...current, day_of_week: day }))}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                  draft.day_of_week === day
+                    ? 'bg-sage-600 text-white'
+                    : 'bg-paper-sunk text-ink-soft hover:bg-sage-100'
+                }`}
+              >
+                {label.slice(0, 3)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Starts">
+            <TextInput
+              type="time"
+              step="300"
+              value={draft.start_time}
+              onChange={(event) => setDraft((current) => ({ ...current, start_time: event.target.value }))}
+            />
+          </Field>
+          <Field label="Ends">
+            <TextInput
+              type="time"
+              step="300"
+              value={draft.end_time}
+              onChange={(event) => setDraft((current) => ({ ...current, end_time: event.target.value }))}
+            />
+          </Field>
         </div>
 
         {error && <p className="text-sm text-amber-800">{error}</p>}

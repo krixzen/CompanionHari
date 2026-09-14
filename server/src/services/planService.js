@@ -10,7 +10,26 @@ import {
   revisionMinutes,
 } from './scheduler.js';
 import { getPlannerSettings } from './settingsService.js';
+import { listStudyBlocks } from './studyBlockService.js';
 import { resolveEffectiveAnchors } from './templateService.js';
+
+/**
+ * The student's approved study windows, keyed by weekday, in the shape the
+ * scheduler wants — or null when the feature hasn't been set up yet, so
+ * every caller falls back to the old "any free gap in the day" behaviour
+ * exactly as before.
+ */
+function studyWindowsMap(studentId) {
+  const blocks = listStudyBlocks(studentId).filter((block) => block.is_active);
+  if (blocks.length === 0) return null;
+
+  const map = new Map();
+  for (const block of blocks) {
+    if (!map.has(block.day_of_week)) map.set(block.day_of_week, []);
+    map.get(block.day_of_week).push({ start: toMinutes(block.start_time), end: toMinutes(block.end_time) });
+  }
+  return map;
+}
 
 const ENTRY_SELECT = `
   SELECT
@@ -124,6 +143,8 @@ function placeRevisions(studentId, studyEntries, settings) {
   const booked = listPlanEntries(studentId, from, to);
   const busy = buildBusyMap(range, resolveEffectiveAnchors(studentId, range), booked, {
     entryPadding: settings.break_minutes,
+    studyWindowsByDay: studyWindowsMap(studentId),
+    dayWindow: { start: toMinutes(settings.day_start), end: toMinutes(settings.day_end) },
   });
   // Revisions count towards the same daily limit as study does.
   const load = buildLoadMap(range, booked);
@@ -309,7 +330,11 @@ export function suggestStudySlot(studentId, topicId, { minutes, from, days = 7 }
     range,
     resolveEffectiveAnchors(studentId, range),
     listPlanEntries(studentId, range[0], range[range.length - 1]),
-    { entryPadding: settings.break_minutes }
+    {
+      entryPadding: settings.break_minutes,
+      studyWindowsByDay: studyWindowsMap(studentId),
+      dayWindow: { start: toMinutes(settings.day_start), end: toMinutes(settings.day_end) },
+    }
   );
 
   for (const date of range) {
@@ -419,6 +444,7 @@ export function autoPlan(studentId, from, to) {
     topics,
     settings,
     notBefore: { date: today, minutes: now.getHours() * 60 + now.getMinutes() },
+    studyWindowsByDay: studyWindowsMap(studentId),
   });
 
   const db = getDb();

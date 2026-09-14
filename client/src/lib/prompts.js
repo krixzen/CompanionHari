@@ -201,6 +201,7 @@ export function schedulePlanPrompt({
   settings,
   examDate,
   coverByDate,
+  studyBlocks = [],
 }) {
   const examLines = [];
   if (examDate) {
@@ -243,6 +244,14 @@ export function schedulePlanPrompt({
   const topicLines = buildTopicLines(topics);
   const revisionTopicLines = buildTopicLines(needsRevision);
 
+  const studyWindowLines = studyBlocks
+    .filter((block) => block.is_active)
+    .map(
+      (block) =>
+        `- Every ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][block.day_of_week]}, ${block.start_time}–${block.end_time}`
+    )
+    .join('\n');
+
   return `You are building a study timetable for a school student, from ${from} to ${to} inclusive.
 ${examLines.length || phaseLine ? `\n${[...examLines, phaseLine].filter(Boolean).join('\n')}\n` : ''}
 Rules for the day:
@@ -250,7 +259,11 @@ Rules for the day:
 - Leave at least ${settings.break_minutes} minutes between blocks.
 - No more than ${settings.daily_max_minutes} minutes of study on any one day.
 - Never schedule over anything listed as busy below.
-
+${
+  studyWindowLines
+    ? `- The student has already agreed which stretches of the week are for studying at all. Only place study, practice or revision blocks inside these windows — never outside them, even if a gap elsewhere looks free:\n${studyWindowLines}\n`
+    : ''
+}
 Busy time — fixed commitments and anything already booked:
 ${busyLines || '(nothing fixed recorded yet)'}
 
