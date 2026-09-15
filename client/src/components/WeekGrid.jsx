@@ -2,7 +2,10 @@ import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { anchorStyle } from '../lib/anchors.js';
 import { DAY_NAMES, dayNumber, dayOfWeek, friendlyTime, toMinutes } from '../lib/week.js';
 
-export const PX_PER_MINUTE = 0.85;
+// Sized to read like a real calendar app (Outlook, Google Calendar) rather
+// than a cramped widget — tall enough that an hour's worth of blocks is
+// comfortable to tap and read without squinting.
+export const PX_PER_MINUTE = 1.5;
 
 /** Rounds the visible window out to whole hours so the hour labels line up. */
 export function gridWindow(settings, entries) {
@@ -38,6 +41,23 @@ function DayColumn({ date, children, isToday }) {
   );
 }
 
+/** The red "right now" line real calendar apps draw across today's column. */
+function NowLine({ window }) {
+  const now = new Date();
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  if (minutes < window.start || minutes > window.end) return null;
+
+  return (
+    <div
+      className="pointer-events-none absolute inset-x-0 z-20 flex items-center"
+      style={{ top: (minutes - window.start) * PX_PER_MINUTE }}
+    >
+      <span className="-ml-[3px] h-2 w-2 shrink-0 rounded-full bg-red-500" />
+      <span className="h-px flex-1 bg-red-500/70" />
+    </div>
+  );
+}
+
 function AnchorBlock({ anchor, window }) {
   const start = toMinutes(anchor.start_time);
   const end = toMinutes(anchor.end_time);
@@ -54,7 +74,7 @@ function AnchorBlock({ anchor, window }) {
       title={`${anchor.label} · ${friendlyTime(anchor.start_time)}–${friendlyTime(anchor.end_time)}`}
     >
       {height > 22 && (
-        <span className="text-[10px] font-medium leading-tight" style={{ color: tint }}>
+        <span className="text-[11px] font-medium leading-tight" style={{ color: tint }}>
           {anchor.label}
         </span>
       )}
@@ -107,7 +127,7 @@ function EntryBlock({ entry, window, onOpen, compact }) {
       }`}
     >
       <p
-        className={`truncate text-[10px] font-semibold leading-tight ${
+        className={`truncate text-xs font-semibold leading-tight ${
           entry.completed ? 'line-through' : ''
         }`}
         style={{ color: entry.subject_colour }}
@@ -125,7 +145,7 @@ function EntryBlock({ entry, window, onOpen, compact }) {
         {entry.subject_name}
       </p>
       {height > 30 && (
-        <p className="truncate text-[10px] leading-tight text-ink-faint">
+        <p className="truncate text-[11px] leading-tight text-ink-faint">
           {friendlyTime(entry.scheduled_start_time)}
           {!compact && height > 40 ? `–${friendlyTime(entry.scheduled_end_time)}` : ''}
         </p>
@@ -158,7 +178,7 @@ export function WeekGrid({ dates, entries, anchors, settings, today, onOpenEntry
     if (entriesByDate.has(entry.scheduled_date)) entriesByDate.get(entry.scheduled_date).push(entry);
   }
 
-  const columns = `3rem repeat(${dates.length}, minmax(0, 1fr))`;
+  const columns = `3.5rem repeat(${dates.length}, minmax(0, 1fr))`;
 
   return (
     <div className="overflow-hidden rounded-xl2 bg-paper-raised shadow-soft">
@@ -183,13 +203,13 @@ export function WeekGrid({ dates, entries, anchors, settings, today, onOpenEntry
         ))}
       </div>
 
-      <div className="max-h-[70vh] overflow-y-auto">
+      <div className="max-h-[calc(100vh-13rem)] overflow-y-auto">
         <div className="grid" style={{ gridTemplateColumns: columns, height }}>
           <div className="relative">
             {hours.map((minute, index) => (
               <span
                 key={minute}
-                className={`absolute right-1.5 text-[10px] text-ink-faint ${
+                className={`absolute right-1.5 text-[11px] text-ink-faint ${
                   index === 0 ? '' : '-translate-y-1/2'
                 }`}
                 style={{ top: (minute - window.start) * PX_PER_MINUTE }}
@@ -224,6 +244,8 @@ export function WeekGrid({ dates, entries, anchors, settings, today, onOpenEntry
                   compact={compact}
                 />
               ))}
+
+              {date === today && <NowLine window={window} />}
             </DayColumn>
           ))}
         </div>
