@@ -5,6 +5,15 @@ import { allocateTrackingNumbers } from './trackingNumber.js';
 
 export const TOPIC_STATUSES = ['not_started', 'in_progress', 'revised', 'mastered'];
 
+/**
+ * The five-stage practice cycle a chapter moves through — NCERT solved
+ * examples, then NCERT exercises, an external module, previous-year
+ * questions, and finally timed sets — tracked independently of study
+ * status since a topic can be "mastered" for study purposes while still
+ * partway through building exam-speed practice.
+ */
+export const PRACTICE_STAGE_COUNT = 5;
+
 const parseJsonColumn = (value, fallback) => {
   try {
     const parsed = JSON.parse(value);
@@ -188,6 +197,9 @@ const UPDATABLE = [
   'target_date',
   'notes',
   'resources',
+  'practice_stage',
+  'question_target',
+  'questions_done',
 ];
 
 export function updateTopic(studentId, topicId, changes) {

@@ -595,6 +595,40 @@ set all their study times together, and add topics by hand when a syllabus is
 short. Dragging is switched off while a search or filter is active, since the
 order you can see is not the whole order.
 
+### Practice: the five-stage cycle and a question-count goal
+Alongside study status, each topic carries its own **practice stage** —
+NCERT solved examples, then NCERT exercises, a module (Aakash or
+whatever's being used), previous-year questions, and finally timed sets —
+tracked independently, since a topic can be fully studied while still
+partway through building exam-speed practice on it. Set it from the
+dropdown right on the topic row.
+
+Next to it, a plain running tally — **questions done / goal** — against
+however many questions that chapter is worth working through. Targets
+vary a lot by subject (and even by type within a subject — Physical,
+Organic and Inorganic Chemistry are worth very different amounts), so
+both numbers are just editable fields rather than anything derived: set a
+goal once, and update the count as questions actually get done. A card at
+the top of the subject totals both numbers across every topic shown, the
+same way the Study/Practice/Revision card does.
+
+### Error notebook
+**Errors** in the main nav is a running log of individual wrong
+questions, kept separately from the calendar because a mistake is worth
+recording the moment it happens, not scheduled for later. Each entry
+holds where the question came from, which of four tags it earned —
+**C**oncept gap, **A**pplication gap, **S**illy slip, or **T**ime — what
+went wrong, the correct idea, and a re-do date that defaults to two weeks
+out. A summary card totals the tags: mostly C means back to theory,
+mostly A means more varied problems, mostly S (the most common and the
+most fixable) means slow down and write cleaner steps, mostly T means the
+earlier stages aren't automatic yet.
+
+Filter by subject, by tag, or down to just what's **due for re-do**.
+Ticking an entry's checkbox marks it re-done and stamps the date — the
+point being that a wrong question isn't done until it's been solved cold,
+from scratch, without looking at the correction.
+
 ### Starting mid-term — marking what's already covered
 Select several topics (the checkbox on each row) and, in the bar that
 appears, **mark them as** whichever status actually fits — handy for
