@@ -28,6 +28,7 @@ import {
   formatMinutes,
   progressMessage,
 } from '../lib/format.js';
+import { PRACTICE_STAGES } from '../lib/practice.js';
 
 export default function TopicsPage() {
   const { subjectId } = useParams();
@@ -209,7 +210,12 @@ export default function TopicsPage() {
         </div>
       )}
 
-      {topics.length > 0 && <PlanBreakdown topics={topics} filtered={filtering} />}
+      {topics.length > 0 && (
+        <div className="mb-6 grid gap-3 sm:grid-cols-2">
+          <PlanBreakdown topics={topics} filtered={filtering} />
+          <PracticeBreakdown topics={topics} filtered={filtering} />
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="w-full sm:w-72">
@@ -498,6 +504,8 @@ function TopicRow({
             )}
           </div>
 
+          <PracticeControls topic={topic} onPatch={onPatch} />
+
           <PlanSummaryBadges summary={topic.plan_summary} />
         </div>
 
@@ -514,6 +522,90 @@ function TopicRow({
         </div>
       </div>
     </Card>
+  );
+}
+
+/**
+ * A chapter's practice cycle stage, plus a running tally against its
+ * question-count goal — both tracked separately from study status, since
+ * a topic can be "mastered" for study and still partway through building
+ * exam-speed practice.
+ */
+function PracticeControls({ topic, onPatch }) {
+  const [target, setTarget] = useState(String(topic.question_target ?? ''));
+  const [done, setDone] = useState(String(topic.questions_done ?? 0));
+
+  const commitTarget = () => {
+    const value = target.trim() === '' ? null : Number(target);
+    if (value !== null && (!Number.isInteger(value) || value < 0)) {
+      setTarget(String(topic.question_target ?? ''));
+      return;
+    }
+    if (value !== (topic.question_target ?? null)) onPatch({ question_target: value });
+  };
+
+  const commitDone = () => {
+    const value = Number(done);
+    if (!Number.isInteger(value) || value < 0) {
+      setDone(String(topic.questions_done ?? 0));
+      return;
+    }
+    if (value !== topic.questions_done) onPatch({ questions_done: value });
+  };
+
+  const target_ = topic.question_target;
+  const pct = target_ ? Math.min(100, Math.round((topic.questions_done / target_) * 100)) : null;
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+      <label className="flex items-center gap-1.5 text-ink-soft">
+        <span className="text-xs text-ink-faint">Stage</span>
+        <select
+          value={topic.practice_stage}
+          onChange={(event) => onPatch({ practice_stage: Number(event.target.value) })}
+          aria-label={`Practice stage for ${topic.tracking_number}`}
+          className="rounded-full border-0 bg-paper-sunk px-2.5 py-1 text-xs font-medium text-ink-soft focus:outline-none focus:ring-2 focus:ring-sage-300"
+        >
+          {PRACTICE_STAGES.map((stage) => (
+            <option key={stage.value} value={stage.value}>
+              {stage.value} · {stage.short}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex items-center gap-1.5 text-ink-soft">
+        <span className="text-xs text-ink-faint">Questions</span>
+        <input
+          type="number"
+          min="0"
+          value={done}
+          onChange={(event) => setDone(event.target.value)}
+          onBlur={commitDone}
+          onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
+          aria-label={`Questions done for ${topic.tracking_number}`}
+          className="w-14 rounded-lg border border-black/10 bg-paper-raised px-2 py-1 text-sm focus:border-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-200"
+        />
+        <span className="text-xs text-ink-faint">/</span>
+        <input
+          type="number"
+          min="0"
+          placeholder="goal"
+          value={target}
+          onChange={(event) => setTarget(event.target.value)}
+          onBlur={commitTarget}
+          onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
+          aria-label={`Question target for ${topic.tracking_number}`}
+          className="w-16 rounded-lg border border-black/10 bg-paper-raised px-2 py-1 text-sm focus:border-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-200"
+        />
+      </label>
+
+      {pct !== null && (
+        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-paper-sunk">
+          <div className="h-full rounded-full bg-sage-500" style={{ width: `${pct}%` }} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -608,6 +700,40 @@ function PlanSummaryBadges({ summary }) {
         </span>
       ))}
     </div>
+  );
+}
+
+/** Question-count progress against each topic's goal, summed across every topic currently listed. */
+function PracticeBreakdown({ topics, filtered }) {
+  const totals = useMemo(
+    () =>
+      topics.reduce(
+        (sum, topic) => ({
+          done: sum.done + (topic.questions_done ?? 0),
+          target: sum.target + (topic.question_target ?? 0),
+          withTarget: sum.withTarget + (topic.question_target ? 1 : 0),
+        }),
+        { done: 0, target: 0, withTarget: 0 }
+      ),
+    [topics]
+  );
+
+  if (totals.withTarget === 0) return null;
+  const pct = totals.target ? Math.min(100, Math.round((totals.done / totals.target) * 100)) : 0;
+
+  return (
+    <Card className="p-4">
+      <h2 className="text-sm font-semibold text-ink">
+        {filtered ? 'Practice, across the topics shown below' : 'Practice questions towards goal'}
+      </h2>
+      <p className="mt-0.5 text-lg font-semibold text-ink">
+        {totals.done}
+        <span className="text-sm font-normal text-ink-faint"> / {totals.target} questions</span>
+      </p>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-paper-sunk">
+        <div className="h-full rounded-full bg-sage-500" style={{ width: `${pct}%` }} />
+      </div>
+    </Card>
   );
 }
 

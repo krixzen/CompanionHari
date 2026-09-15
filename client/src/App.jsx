@@ -3,6 +3,7 @@ import { AppShell } from './components/AppShell.jsx';
 import { StudyDataProvider } from './hooks/useStudyData.jsx';
 import { ToastProvider } from './hooks/useToast.jsx';
 import AnchorsPage from './pages/AnchorsPage.jsx';
+import ErrorNotebookPage from './pages/ErrorNotebookPage.jsx';
 import HomePage from './pages/HomePage.jsx';
 import PlannerPage from './pages/PlannerPage.jsx';
 import ProgressPage from './pages/ProgressPage.jsx';
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="/subjects/:subjectId/import" element={<ImportPage />} />
             <Route path="/tests" element={<TestsPage />} />
             <Route path="/tests/:testId" element={<TestDetailPage />} />
+            <Route path="/errors" element={<ErrorNotebookPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AppShell>

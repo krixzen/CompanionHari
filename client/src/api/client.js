@@ -104,6 +104,15 @@ export const api = {
     remove: (id) => request(`/study-blocks/${id}`, { method: 'DELETE' }),
   },
 
+  errorNotes: {
+    list: (params) => request(`/error-notes${query(params)}`).then((r) => r.notes),
+    summary: (params) => request(`/error-notes/summary${query(params)}`).then((r) => r.counts),
+    create: (note) => request('/error-notes', { method: 'POST', body: note }).then((r) => r.note),
+    update: (id, changes) =>
+      request(`/error-notes/${id}`, { method: 'PATCH', body: changes }).then((r) => r.note),
+    remove: (id) => request(`/error-notes/${id}`, { method: 'DELETE' }),
+  },
+
   plan: {
     list: (from, to) => request(`/plan${query({ from, to })}`).then((r) => r.entries),
     unscheduled: () => request('/plan/unscheduled').then((r) => r.topics),

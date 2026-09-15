@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { analysisRouter } from './analysis.js';
 import { anchorsRouter } from './anchors.js';
+import { errorNotesRouter } from './errorNotes.js';
 import { planRouter } from './plan.js';
 import { progressRouter } from './progress.js';
 import { sessionsRouter } from './sessions.js';
@@ -21,6 +22,7 @@ export function createApiRouter() {
   router.use('/topics', topicsRouter);
   router.use('/syllabus', syllabusRouter);
   router.use('/anchors', anchorsRouter);
+  router.use('/error-notes', errorNotesRouter);
   router.use('/templates', templatesRouter);
   router.use('/study-blocks', studyBlocksRouter);
   router.use('/plan', planRouter);

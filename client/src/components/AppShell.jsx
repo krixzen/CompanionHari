@@ -30,6 +30,9 @@ export function AppShell({ children }) {
             <NavLink to="/tests" className={linkClasses}>
               Tests
             </NavLink>
+            <NavLink to="/errors" className={linkClasses}>
+              Errors
+            </NavLink>
             <NavLink to="/progress" className={linkClasses}>
               Progress
             </NavLink>
