@@ -42,11 +42,11 @@ import {
   weekDates,
 } from '../lib/week.js';
 
-/** How far ahead "Ask Claude or ChatGPT to plan it" can be asked to look. */
+/** How far ahead "Plan my week" and "Ask Claude or ChatGPT to plan it" reach. */
 const SCHEDULE_HORIZONS = [
-  { key: 'week', label: 'This week', days: 6 },
-  { key: '2weeks', label: 'Next 2 weeks', days: 13 },
-  { key: '4weeks', label: 'Next 4 weeks', days: 27 },
+  { key: 'week', label: 'This week', days: 6, planLabel: 'Plan my week' },
+  { key: '2weeks', label: 'Next 2 weeks', days: 13, planLabel: 'Plan the next 2 weeks' },
+  { key: '4weeks', label: 'Next 4 weeks', days: 27, planLabel: 'Plan the next 4 weeks' },
 ];
 
 export default function PlannerPage() {
@@ -268,12 +268,12 @@ export default function PlannerPage() {
     setPlanning(true);
     setReport(null);
     try {
-      const result = await api.plan.auto(monday, addDays(monday, 6));
+      const result = await api.plan.auto(monday, scheduleTo);
       await refresh();
       await refreshSubjects();
 
       if (result.placed === 0) {
-        toast.warn(result.message ?? 'Nothing new could be fitted in this week.');
+        toast.warn(result.message ?? 'Nothing new could be fitted in that stretch.');
       } else {
         toast.celebrate(
           `${result.placed} study block${result.placed === 1 ? '' : 's'} planned${
@@ -548,7 +548,11 @@ export default function PlannerPage() {
               {loadingScheduleContext ? 'Preparing…' : 'Ask Claude or ChatGPT to plan it'}
             </Button>
             <Button variant="primary" onClick={planWeek} disabled={planning}>
-              {planning ? 'Planning…' : 'Plan my week'}
+              {planning
+                ? 'Planning…'
+                : scheduleHorizon === 'coverage'
+                  ? 'Plan until my deadline'
+                  : SCHEDULE_HORIZONS.find((option) => option.key === scheduleHorizon)?.planLabel ?? 'Plan my week'}
             </Button>
             <Button onClick={saveSnapshot} disabled={savingSnapshot}>
               {savingSnapshot ? 'Saving…' : 'Save as baseline'}
