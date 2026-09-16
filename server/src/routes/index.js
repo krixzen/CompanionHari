@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { analysisRouter } from './analysis.js';
 import { anchorsRouter } from './anchors.js';
 import { errorNotesRouter } from './errorNotes.js';
+import { practiceItemsRouter } from './practiceItems.js';
+import { scheduleSnapshotsRouter } from './scheduleSnapshots.js';
 import { planRouter } from './plan.js';
 import { progressRouter } from './progress.js';
 import { sessionsRouter } from './sessions.js';
@@ -23,6 +25,8 @@ export function createApiRouter() {
   router.use('/syllabus', syllabusRouter);
   router.use('/anchors', anchorsRouter);
   router.use('/error-notes', errorNotesRouter);
+  router.use('/practice-items', practiceItemsRouter);
+  router.use('/schedule-snapshots', scheduleSnapshotsRouter);
   router.use('/templates', templatesRouter);
   router.use('/study-blocks', studyBlocksRouter);
   router.use('/plan', planRouter);

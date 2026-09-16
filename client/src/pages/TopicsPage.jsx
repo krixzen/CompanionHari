@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { PageHeader } from '../components/AppShell.jsx';
@@ -28,7 +28,7 @@ import {
   formatMinutes,
   progressMessage,
 } from '../lib/format.js';
-import { PRACTICE_STAGES } from '../lib/practice.js';
+import { STAGES } from '../lib/practice.js';
 
 export default function TopicsPage() {
   const { subjectId } = useParams();
@@ -55,6 +55,22 @@ export default function TopicsPage() {
   const [expanded, setExpanded] = useState(() => new Set());
   const [logging, setLogging] = useState(null);
   const [suggestion, setSuggestion] = useState(null);
+
+  const [masterList, setMasterList] = useState([]);
+  const loadMasterList = async () => setMasterList(await api.practiceItems.list({ subject_id: id }));
+  useEffect(() => {
+    if (id) loadMasterList();
+  }, [id]);
+
+  const itemsByTopic = useMemo(() => {
+    const map = new Map();
+    for (const item of masterList) {
+      if (!map.has(item.topic_id)) map.set(item.topic_id, []);
+      map.get(item.topic_id).push(item);
+    }
+    for (const items of map.values()) items.sort((a, b) => a.stage - b.stage);
+    return map;
+  }, [masterList]);
 
   const subject = subjects.find((candidate) => candidate.id === id);
   const filtering = Boolean(statusFilter || difficultyFilter || debouncedSearch);
@@ -213,7 +229,7 @@ export default function TopicsPage() {
       {topics.length > 0 && (
         <div className="mb-6 grid gap-3 sm:grid-cols-2">
           <PlanBreakdown topics={topics} filtered={filtering} />
-          <PracticeBreakdown topics={topics} filtered={filtering} />
+          <MasterListBreakdown items={masterList} />
         </div>
       )}
 
@@ -321,6 +337,8 @@ export default function TopicsPage() {
                   {({ handleProps }) => (
                     <TopicRow
                       topic={topic}
+                      items={itemsByTopic.get(topic.id) ?? []}
+                      onItemsChanged={loadMasterList}
                       handleProps={handleProps}
                       dragDisabled={filtering}
                       selected={selected.has(topic.id)}
@@ -394,6 +412,8 @@ export default function TopicsPage() {
 
 function TopicRow({
   topic,
+  items,
+  onItemsChanged,
   handleProps,
   dragDisabled,
   selected,
@@ -504,7 +524,7 @@ function TopicRow({
             )}
           </div>
 
-          <PracticeControls topic={topic} onPatch={onPatch} />
+          <MasterListChips items={items} onChanged={onItemsChanged} />
 
           <PlanSummaryBadges summary={topic.plan_summary} />
         </div>
@@ -525,86 +545,53 @@ function TopicRow({
   );
 }
 
+const ITEM_STATUS_STYLE = {
+  pending: 'bg-paper-sunk text-ink-faint',
+  scheduled: 'bg-amber-100 text-amber-800',
+  done: 'bg-sage-600 text-white',
+};
+
 /**
- * A chapter's practice cycle stage, plus a running tally against its
- * question-count goal — both tracked separately from study status, since
- * a topic can be "mastered" for study and still partway through building
- * exam-speed practice.
+ * The chapter's master list, right on its row: one chip per stage of the
+ * five-stage practice cycle. A click cycles it between pending and done —
+ * scheduled (amber) means it's already booked on the calendar and updates
+ * itself when that block is ticked off.
  */
-function PracticeControls({ topic, onPatch }) {
-  const [target, setTarget] = useState(String(topic.question_target ?? ''));
-  const [done, setDone] = useState(String(topic.questions_done ?? 0));
+function MasterListChips({ items, onChanged }) {
+  const toast = useToast();
+  if (items.length === 0) return null;
 
-  const commitTarget = () => {
-    const value = target.trim() === '' ? null : Number(target);
-    if (value !== null && (!Number.isInteger(value) || value < 0)) {
-      setTarget(String(topic.question_target ?? ''));
+  const toggle = async (item) => {
+    if (item.status === 'scheduled') {
+      toast.warn('This is already booked on the calendar — tick it off there, or take it off the calendar first.');
       return;
     }
-    if (value !== (topic.question_target ?? null)) onPatch({ question_target: value });
-  };
-
-  const commitDone = () => {
-    const value = Number(done);
-    if (!Number.isInteger(value) || value < 0) {
-      setDone(String(topic.questions_done ?? 0));
-      return;
+    try {
+      await api.practiceItems.mark(item.id, item.status !== 'done');
+      await onChanged?.();
+    } catch (caught) {
+      toast.warn(caught.message);
     }
-    if (value !== topic.questions_done) onPatch({ questions_done: value });
   };
 
-  const target_ = topic.question_target;
-  const pct = target_ ? Math.min(100, Math.round((topic.questions_done / target_) * 100)) : null;
+  const done = items.filter((item) => item.status === 'done').length;
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
-      <label className="flex items-center gap-1.5 text-ink-soft">
-        <span className="text-xs text-ink-faint">Stage</span>
-        <select
-          value={topic.practice_stage}
-          onChange={(event) => onPatch({ practice_stage: Number(event.target.value) })}
-          aria-label={`Practice stage for ${topic.tracking_number}`}
-          className="rounded-full border-0 bg-paper-sunk px-2.5 py-1 text-xs font-medium text-ink-soft focus:outline-none focus:ring-2 focus:ring-sage-300"
+    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      <span className="text-xs text-ink-faint">
+        Master list {done}/{items.length}
+      </span>
+      {items.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          onClick={() => toggle(item)}
+          title={`${item.label} · ${item.estimated_minutes} min · ${item.status}`}
+          className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition ${ITEM_STATUS_STYLE[item.status]}`}
         >
-          {PRACTICE_STAGES.map((stage) => (
-            <option key={stage.value} value={stage.value}>
-              {stage.value} · {stage.short}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="flex items-center gap-1.5 text-ink-soft">
-        <span className="text-xs text-ink-faint">Questions</span>
-        <input
-          type="number"
-          min="0"
-          value={done}
-          onChange={(event) => setDone(event.target.value)}
-          onBlur={commitDone}
-          onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
-          aria-label={`Questions done for ${topic.tracking_number}`}
-          className="w-14 rounded-lg border border-black/10 bg-paper-raised px-2 py-1 text-sm focus:border-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-200"
-        />
-        <span className="text-xs text-ink-faint">/</span>
-        <input
-          type="number"
-          min="0"
-          placeholder="goal"
-          value={target}
-          onChange={(event) => setTarget(event.target.value)}
-          onBlur={commitTarget}
-          onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
-          aria-label={`Question target for ${topic.tracking_number}`}
-          className="w-16 rounded-lg border border-black/10 bg-paper-raised px-2 py-1 text-sm focus:border-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-200"
-        />
-      </label>
-
-      {pct !== null && (
-        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-paper-sunk">
-          <div className="h-full rounded-full bg-sage-500" style={{ width: `${pct}%` }} />
-        </div>
-      )}
+          S{item.stage}
+        </button>
+      ))}
     </div>
   );
 }
@@ -703,36 +690,27 @@ function PlanSummaryBadges({ summary }) {
   );
 }
 
-/** Question-count progress against each topic's goal, summed across every topic currently listed. */
-function PracticeBreakdown({ topics, filtered }) {
-  const totals = useMemo(
-    () =>
-      topics.reduce(
-        (sum, topic) => ({
-          done: sum.done + (topic.questions_done ?? 0),
-          target: sum.target + (topic.question_target ?? 0),
-          withTarget: sum.withTarget + (topic.question_target ? 1 : 0),
-        }),
-        { done: 0, target: 0, withTarget: 0 }
-      ),
-    [topics]
-  );
+/** The master list's own rollup: how much of the five-stage cycle is actually done, across every topic shown. */
+function MasterListBreakdown({ items }) {
+  if (items.length === 0) return null;
 
-  if (totals.withTarget === 0) return null;
-  const pct = totals.target ? Math.min(100, Math.round((totals.done / totals.target) * 100)) : 0;
+  const done = items.filter((item) => item.status === 'done').length;
+  const pendingMinutes = items
+    .filter((item) => item.status !== 'done')
+    .reduce((sum, item) => sum + item.estimated_minutes, 0);
+  const pct = Math.round((done / items.length) * 100);
 
   return (
     <Card className="p-4">
-      <h2 className="text-sm font-semibold text-ink">
-        {filtered ? 'Practice, across the topics shown below' : 'Practice questions towards goal'}
-      </h2>
+      <h2 className="text-sm font-semibold text-ink">Master list — the five-stage cycle</h2>
       <p className="mt-0.5 text-lg font-semibold text-ink">
-        {totals.done}
-        <span className="text-sm font-normal text-ink-faint"> / {totals.target} questions</span>
+        {done}
+        <span className="text-sm font-normal text-ink-faint"> / {items.length} stages done</span>
       </p>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-paper-sunk">
         <div className="h-full rounded-full bg-sage-500" style={{ width: `${pct}%` }} />
       </div>
+      <p className="mt-1.5 text-xs text-ink-faint">{formatMinutes(pendingMinutes)} of backlog left.</p>
     </Card>
   );
 }

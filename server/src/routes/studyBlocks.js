@@ -5,7 +5,6 @@ import {
   addStudyBlock,
   deleteStudyBlock,
   listStudyBlocks,
-  proposeStudyBlocks,
   saveStudyBlocks,
   updateStudyBlock,
 } from '../services/studyBlockService.js';
@@ -23,14 +22,6 @@ const asId = (value) => {
 studyBlocksRouter.get('/', (req, res) => {
   res.json({ blocks: listStudyBlocks(studentId()) });
 });
-
-// Declared before /:id so "propose" is never read as an id.
-studyBlocksRouter.get(
-  '/propose',
-  asyncRoute((req, res) => {
-    res.json({ blocks: proposeStudyBlocks(studentId()) });
-  })
-);
 
 /** Replaces the whole set in one go — the save behind the review screen. */
 studyBlocksRouter.put(

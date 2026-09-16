@@ -343,13 +343,15 @@ blocks are dotted and marked with ✎.
 
 ### Study, practice, and revision
 A block on the calendar is one of three kinds:
-- **Study** — meeting a sub-topic for the first time.
-- **Practice** — working problems on something already studied, rather than
-  learning it fresh. Never booked automatically; the AI-scheduling prompt
-  proposes one where it judges it would help (a problem-solving subject, a
-  method-heavy sub-topic), a few days after the study sitting.
-- **Revision** — the short, spaced follow-ups (1 day / 3 days / 1 week) this
-  app books automatically after every study block, to make it stick.
+- **Study** — Stage 1 of a chapter's master list (NCERT solved examples):
+  meeting it for the first time.
+- **Practice** — Stages 2 through 5 of the master list: exercises, module
+  work, previous-year questions, timed sets.
+- **Revision** — the short, spaced 1-day/3-day/1-week follow-ups this app
+  still books automatically after a hand-added or Plan-my-week study block
+  that isn't part of the master list (a topic added before it existed, say).
+  A master-list booking doesn't get these — the five-stage cycle's own
+  built-in spacing is the spaced repetition.
 
 Confirming a block is done is the same tap-and-tick as always; what actually
 happened on a given day is always visible afterwards on **Progress**, which
@@ -374,17 +376,19 @@ are then restricted to — subject scheduling only ever fills time inside
 them, and a day left with none stays free rather than getting filled
 anyway.
 
-Press **Propose study times** and the app looks at the next two weeks of
-your fixed commitments, keeps only the gaps that are free on both, and
-hands back a draft — one row per free stretch, grouped by day. Nothing is
-saved yet: tick off what you don't want, nudge a start time or shorten one
-to fit how the day actually goes (a slot right after getting home deserves
-a later start than the calendar strictly allows for), then **Save study
-time**. This is the point of the whole feature — the student agreeing to
-the shape of their own week rather than the app deciding it for them.
-Add, edit or delete individual windows by hand afterwards the same way as
-anywhere else in the app, or press **Re-propose from scratch** to start
-over.
+Press **Design study time with AI** and say — in a few words per part of
+the day — how much time is actually left over for studying (the app
+already knows what's fixed, so this is just the student's own sense of a
+typical week: "not much on school mornings," "a couple of hours on
+weekends"). The prompt this builds hands the actual judgement call to a
+conversation: which stretches suit focused problem-solving versus a short
+low-effort review versus calm first-pass learning, where breaks and real
+leisure belong, and it comes back with blocks and a short reason for each
+one. Paste the reply in and it goes to the same review list as
+everywhere else — tick off what you don't want, nudge a time, nothing is
+saved until you press **Save study time**. Add, edit or delete individual
+windows by hand afterwards the same way as anywhere else in the app, or
+press **Redesign with AI** to start over.
 
 Until you've set any study time, both planners behave exactly as before —
 free to use any open gap in the day. Once you have, they only place blocks
@@ -398,42 +402,58 @@ booked inside them still visible on top — a quick answer to "is study time
 being used" without the rest of the week's clutter in the way.
 
 ### Plan my week
-One button fills the week's free time — inside your study-time windows,
-once you've set any; every open gap in the day otherwise. It works in a
-deliberately predictable order, so you can always see why it chose what it
-chose:
+One button fills the week's free time from the **master list** — the
+pending stages waiting across every subject — inside your study-time
+windows, once you've set any; every open gap in the day otherwise. It
+works in a deliberately predictable order, so you can always see why it
+chose what it chose:
 
-1. topics with a target date, soonest first;
-2. then everything else in the order you arranged it, subject by subject.
+1. chapters with a target date, soonest first;
+2. then everything else in the order you arranged it, subject by subject,
+   stage by stage.
 
-Each topic goes into the earliest gap on the earliest day that it actually
-fits, leaving the break you asked for between blocks. Topics that will not fit
-are never dropped silently — they stay in the waiting list and the app says why
-in plain English ("every day in this stretch is already at its 4-hour limit").
+Each pending stage goes into the earliest gap on the earliest day that it
+actually fits, leaving the break you asked for between blocks, and gets
+marked **scheduled** on the master list the moment it's booked. A stage
+that will not fit is never dropped silently — it stays in the waiting
+list and the app says why in plain English ("every day in this stretch is
+already at its 4-hour limit").
 
 Days that have already gone by are left alone, and so are the hours earlier
 today.
 
 ### Or let an assistant plan it
 **"Ask Claude or ChatGPT to plan it,"** next to Plan my week, hands the same
-job to a conversation instead of the built-in algorithm. It writes a prompt
-containing everything the app knows — your fixed commitments, any study
-time you've set, anything already on the calendar, and every topic waiting
-for a slot — and asks for a day-by-day timetable back. When study time is
-set, the assistant is told explicitly to place blocks only inside those
-windows, the same restriction "Plan my week" follows. The prompt itself asks for a realistic mix rather
-than a cram session: subjects interleaved instead of blocked for hours at a
-stretch, a topic's own sub-topics spread across days instead of chained
-one after another, and only the first sitting for each sub-topic — this app
-books its revision follow-ups automatically once it's saved, so the
-assistant is asked not to add those itself.
+job to a conversation instead of the built-in algorithm — and, unlike Plan
+my week, can actually reason about the whole thing rather than just
+first-fitting. It writes a prompt containing everything the app knows —
+your fixed commitments, any study time you've set, anything already on the
+calendar, every pending stage from the master list, and (if you've saved
+one — see below) how far actual progress has drifted from the last saved
+baseline — and asks for a day-by-day timetable back, referencing each
+stage as e.g. `PHY-001/S3`. It's told the cycle is deliberately spread
+out (so it should prefer touching several chapters at different stages
+over racing one chapter through all five), that Stage 1 suits a fresh part
+of the day and Stage 5 needs a real uninterrupted stretch, and — same as
+Plan my week — to respect study-time windows where they're set. It also
+closes with one honest sentence on whether the stretch is enough to keep
+pace, and roughly how much more time would close the gap if not.
 
 Paste the reply in and it goes to a review list: each proposed block shows
-the topic it matched to, with its date, time and length all editable, and a
-tick box to leave anything out. Nothing is booked until you press Save. A
-block that names a tracking number the app doesn't recognise — already
-scheduled, or not on your list at all — is called out and left aside rather
-than silently dropped or guessed at.
+the chapter and stage it matched to, with its date, time and length all
+editable, and a tick box to leave anything out. Nothing is booked until you
+press Save. A block that names a reference the app doesn't recognise — a
+stage already booked, or a chapter not on the list at all — is called out
+and left aside rather than silently dropped or guessed at.
+
+### A saved baseline, and how far behind that puts you
+Press **Save as baseline** (next to Plan my week) any time to freeze a
+snapshot: how much master-list work is pending, per subject, right now,
+and the coverage deadline in effect. From then on, the Week page shows a
+card comparing actual progress since that moment against the pace that
+backlog implied — "Physics — behind by 2h 15m," or "on pace" — a plain,
+computed number, not a guess. Save a new baseline whenever you want a
+fresh reference point; only the most recent one is shown.
 
 ### Planning against an exam date
 Set an **exam date** and a **cover every topic by** date under Fixed
@@ -595,22 +615,26 @@ set all their study times together, and add topics by hand when a syllabus is
 short. Dragging is switched off while a search or filter is active, since the
 order you can see is not the whole order.
 
-### Practice: the five-stage cycle and a question-count goal
-Alongside study status, each topic carries its own **practice stage** —
-NCERT solved examples, then NCERT exercises, a module (Aakash or
-whatever's being used), previous-year questions, and finally timed sets —
-tracked independently, since a topic can be fully studied while still
-partway through building exam-speed practice on it. Set it from the
-dropdown right on the topic row.
+### The master list: every chapter's five-stage cycle
+Every topic is automatically broken into five trackable rows the moment
+it's created — its own copy of the five-stage practice cycle: NCERT
+solved examples, NCERT exercises, a module (Aakash or whatever's being
+used), previous-year questions, and a timed set. This **is** the syllabus
+as a backlog — the thing both "Plan my week" and the AI-scheduling prompt
+actually schedule from, not the topic as a single lump.
 
-Next to it, a plain running tally — **questions done / goal** — against
-however many questions that chapter is worth working through. Targets
-vary a lot by subject (and even by type within a subject — Physical,
-Organic and Inorganic Chemistry are worth very different amounts), so
-both numbers are just editable fields rather than anything derived: set a
-goal once, and update the count as questions actually get done. A card at
-the top of the subject totals both numbers across every topic shown, the
-same way the Study/Practice/Revision card does.
+Each row (shown as an **S1**–**S5** chip on the topic's row) has its own
+estimated length and its own status — pending, scheduled (booked on the
+calendar), or done — independent of the topic's own study status, since a
+topic can be fully "studied" while still partway through building
+exam-speed practice on it. Click a chip to mark it done by hand, or let
+booking and ticking off a calendar block do it automatically. A card at
+the top of the subject totals how much of the cycle is actually done
+across every topic shown, and how much backlog time is left.
+
+If a topic somehow has no master list yet (from before this existed), the
+app fills it in automatically the next time the server starts — nothing
+to do by hand.
 
 ### Error notebook
 **Errors** in the main nav is a running log of individual wrong
@@ -633,17 +657,12 @@ from scratch, without looking at the correction.
 Select several topics (the checkbox on each row) and, in the bar that
 appears, **mark them as** whichever status actually fits — handy for
 everything covered before you started using this app, which the app has no
-other way of knowing about. "Revised" or "Confident" takes a topic out of
-the queue for fresh study entirely: **Plan my week** and the AI-scheduling
-prompt both stop treating it as something waiting to be learned.
-
-It isn't dropped from planning altogether, though — a topic marked
-"Revised" shows up in the AI-scheduling prompt under a separate heading, as
-already covered and needing revision rather than a first pass, and the
-assistant is asked to give it a short revision sitting instead. Each
-topic's own three-way badges (**Study/Practice/Revision**, see above) make
-it easy to see afterwards which of these catch-up revisions have actually
-happened.
+other way of knowing about. Marking a topic "Revised" or "Confident" marks
+**Stage 1** of its master list (NCERT solved examples) done automatically,
+so scheduling stops offering it as a first pass and moves straight to the
+practice stages instead — the point being that "already covered" and
+"needs practice, not learning" are the same fact, so one action should
+cover both.
 
 ### A daily habit: what did class cover today?
 **Home** carries a standing card, **"Covered in class today?"** — every
@@ -651,10 +670,10 @@ topic still `Not started` or `Learning`, across every subject, one flat
 searchable list rather than subject by subject. Tick whatever class got
 through today, whether or not you've personally sat down with it yet, and
 **Mark covered** does the same thing as the bulk action above: the topic
-moves to `Revised`, drops out of the queue for fresh study, and picks up a
-revision sitting next time a schedule gets planned. The card is only there
-when there's something left to log — once every topic has been marked at
-some point, it stops showing up.
+moves to `Revised` and its master list's Stage 1 is marked done, so
+scheduling moves straight to practice for it. The card is only there when
+there's something left to log — once every topic has been marked at some
+point, it stops showing up.
 
 Sub-topics carry their own number too — `PHY-001/01`, `PHY-001/02` — shown
 wherever a topic's sub-topics are listed, on the topic list and when editing

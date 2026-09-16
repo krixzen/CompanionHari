@@ -3,12 +3,15 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { PageHeader } from '../components/AppShell.jsx';
 import { ConfirmDialog } from '../components/ConfirmDialog.jsx';
+import { LLMBridge } from '../components/LLMBridge.jsx';
 import { Modal } from '../components/Modal.jsx';
-import { Button, Card, EmptyState, ErrorNote, Field, Select, Spinner, TextInput } from '../components/ui.jsx';
+import { Button, Card, EmptyState, ErrorNote, Field, Select, Spinner, TextArea, TextInput } from '../components/ui.jsx';
 import { useToast } from '../hooks/useToast.jsx';
 import { ANCHOR_TYPES, anchorStyle } from '../lib/anchors.js';
 import { formatDate } from '../lib/format.js';
-import { friendlyTime, toMinutes, todayIso, weekBounds, weekNumberForDate } from '../lib/week.js';
+import { studyBlockPrompt } from '../lib/prompts.js';
+import { studyBlockSchema } from '../lib/schemas.js';
+import { addDays, friendlyTime, startOfWeek, toMinutes, todayIso, weekBounds, weekNumberForDate } from '../lib/week.js';
 
 const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -1242,14 +1245,21 @@ const durationLabel = (start, end) => {
  * next two weeks of fixed commitments but never writes anything; only
  * saving what the student kept and adjusted does.
  */
+const DAY_PARTS = ['morning', 'afternoon', 'evening', 'night'];
+
 function StudyBlocksSection() {
   const toast = useToast();
   const [blocks, setBlocks] = useState(null); // null while loading
-  const [proposing, setProposing] = useState(false);
   const [draft, setDraft] = useState(null); // rows under review, or null
   const [saving, setSaving] = useState(false);
   const [editingBlock, setEditingBlock] = useState(null); // block or { day_of_week } for "new", or null
   const [deletingBlock, setDeletingBlock] = useState(null);
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [dayParts, setDayParts] = useState({ morning: '', afternoon: '', evening: '', night: '' });
+  const [notes, setNotes] = useState('');
+  const [bridgeOpen, setBridgeOpen] = useState(false);
+  const [promptAnchors, setPromptAnchors] = useState(null);
 
   const load = async () => setBlocks(await api.studyBlocks.list());
 
@@ -1261,19 +1271,14 @@ function StudyBlocksSection() {
 
   const byDay = DAY_LABELS.map((_, day) => blocks.filter((block) => block.day_of_week === day));
 
-  const propose = async () => {
-    setProposing(true);
+  const openBridge = async () => {
     try {
-      const proposed = await api.studyBlocks.propose();
-      if (proposed.length === 0) {
-        toast.warn('Nothing came back free — the week looks fully booked already.');
-        return;
-      }
-      setDraft(proposed.map((row, index) => ({ ...row, key: index, keep: true })));
+      const monday = startOfWeek(todayIso());
+      setPromptAnchors(await api.anchors.effective(monday, addDays(monday, 6)));
+      setFormOpen(false);
+      setBridgeOpen(true);
     } catch (caught) {
       toast.warn(caught.message);
-    } finally {
-      setProposing(false);
     }
   };
 
@@ -1304,18 +1309,73 @@ function StudyBlocksSection() {
         title="Study time"
         description="Once school, coaching, meals and travel are accounted for, these are the windows actually set aside for studying — the same shape every week. Subject scheduling only ever fills time inside them; a day left with none stays free."
         actions={
-          <Button variant="primary" onClick={propose} disabled={proposing}>
-            {proposing ? 'Working it out…' : blocks.length > 0 ? 'Re-propose from scratch' : 'Propose study times'}
+          <Button variant="primary" onClick={() => setFormOpen(true)}>
+            {blocks.length > 0 ? 'Redesign with AI' : 'Design study time with AI'}
           </Button>
         }
       />
 
+      {formOpen && (
+        <Card className="mb-4 p-4">
+          <h3 className="text-sm font-semibold text-ink">How much time do you actually have?</h3>
+          <p className="mt-1 text-xs text-ink-faint">
+            A general sense of a typical week is enough — the assistant already knows what's fixed. It'll design
+            the actual blocks, mixing what each is good for, with breaks and leisure built in rather than every
+            free minute becoming a study block.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {DAY_PARTS.map((part) => (
+              <Field key={part} label={part[0].toUpperCase() + part.slice(1)}>
+                <TextInput
+                  value={dayParts[part]}
+                  placeholder="e.g. maybe an hour on weekdays, more on weekends"
+                  onChange={(event) => setDayParts((current) => ({ ...current, [part]: event.target.value }))}
+                />
+              </Field>
+            ))}
+          </div>
+          <Field label="Anything else worth knowing (optional)" className="mt-3">
+            <TextArea
+              value={notes}
+              rows={2}
+              placeholder="Tired after Saturday coaching, prefers mornings for anything hard…"
+              onChange={(event) => setNotes(event.target.value)}
+            />
+          </Field>
+          <div className="mt-3 flex gap-2">
+            <Button variant="primary" onClick={openBridge}>
+              Generate the prompt
+            </Button>
+            <Button variant="ghost" onClick={() => setFormOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      <LLMBridge
+        open={bridgeOpen}
+        onClose={() => setBridgeOpen(false)}
+        title="Design study time together"
+        purpose="This app never contacts an AI service — copy the prompt across yourself, then bring the reply back. Nothing is saved until you review and confirm it below."
+        prompt={promptAnchors ? studyBlockPrompt({ anchors: promptAnchors, dayParts, notes }) : ''}
+        schema={studyBlockSchema}
+        saveLabel="Review these blocks"
+        renderPreview={(data) => (
+          <p className="text-sm text-ink-soft">{data.blocks.length} study block{data.blocks.length === 1 ? '' : 's'} proposed.</p>
+        )}
+        onSave={(data) => {
+          setDraft(data.blocks.map((row, index) => ({ ...row, key: index, keep: true })));
+          setBridgeOpen(false);
+        }}
+      />
+
       {draft && (
         <Card className="mb-4 p-4">
-          <h3 className="text-sm font-semibold text-ink">Here's what looks free — tick what you want, adjust the rest</h3>
+          <h3 className="text-sm font-semibold text-ink">Here's what it came back with — tick what you want, adjust the rest</h3>
           <p className="mt-1 text-xs text-ink-faint">
-            Based on the next two weeks, kept only where it is free on both. Move a start time or shorten one to fit
-            real logistics, or untick anything you would rather keep as a break.
+            Nothing is saved yet. Move a start time or shorten one to fit real logistics, or untick anything you'd
+            rather leave open.
           </p>
           <ul className="mt-3 space-y-2">
             {draft.map((row, index) => (
@@ -1347,6 +1407,7 @@ function StudyBlocksSection() {
                   className="rounded-lg border border-black/10 bg-white px-2 py-1 text-sm text-ink"
                 />
                 <span className="text-[11px] text-ink-faint">{durationLabel(row.start_time, row.end_time)}</span>
+                {row.note && <span className="w-full text-[11px] italic text-ink-faint sm:w-auto">{row.note}</span>}
               </li>
             ))}
           </ul>
@@ -1363,8 +1424,8 @@ function StudyBlocksSection() {
 
       {!draft && blocks.length === 0 && (
         <EmptyState title="No study time set yet.">
-          Propose study times to see what's actually free once everything else is accounted for, then adjust and
-          save it. Until then, subject scheduling is free to use any open gap in the day, same as before.
+          Say how much time you actually have and design it with AI — a proper weekly shape, not just whatever
+          gaps are left. Until then, subject scheduling is free to use any open gap in the day.
         </EmptyState>
       )}
 

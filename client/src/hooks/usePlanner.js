@@ -4,17 +4,16 @@ import { addDays } from '../lib/week.js';
 
 /**
  * Everything one week of the calendar needs: the blocks on it, the weekly
- * commitments behind them, the planner's settings and the topics still
- * waiting for a slot — either for a first pass, or (having been marked
- * "Revised" already, whether through this app or before it) for revision.
+ * commitments behind them, the planner's settings, and the master-list
+ * items still pending a slot (each chapter's five-stage practice cycle,
+ * one row per stage not yet scheduled or done).
  */
 export function usePlanner(mondayIso) {
   const [entries, setEntries] = useState([]);
   const [anchors, setAnchors] = useState([]);
   const [settings, setSettings] = useState(null);
   const [term, setTerm] = useState(null);
-  const [unscheduled, setUnscheduled] = useState([]);
-  const [needsRevision, setNeedsRevision] = useState([]);
+  const [pendingItems, setPendingItems] = useState([]);
   const [studyBlocks, setStudyBlocks] = useState([]);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
@@ -22,29 +21,20 @@ export function usePlanner(mondayIso) {
   const load = useCallback(async () => {
     setStatus('loading');
     try {
-      const [
-        loadedEntries,
-        loadedAnchors,
-        loadedSettings,
-        loadedTerm,
-        loadedUnscheduled,
-        loadedNeedsRevision,
-        loadedStudyBlocks,
-      ] = await Promise.all([
-        api.plan.list(mondayIso, addDays(mondayIso, 6)),
-        api.anchors.effective(mondayIso, addDays(mondayIso, 6)),
-        api.settings.planner(),
-        api.settings.term(),
-        api.plan.unscheduled(),
-        api.plan.needsRevision(),
-        api.studyBlocks.list(),
-      ]);
+      const [loadedEntries, loadedAnchors, loadedSettings, loadedTerm, loadedPendingItems, loadedStudyBlocks] =
+        await Promise.all([
+          api.plan.list(mondayIso, addDays(mondayIso, 6)),
+          api.anchors.effective(mondayIso, addDays(mondayIso, 6)),
+          api.settings.planner(),
+          api.settings.term(),
+          api.practiceItems.list({ status: 'pending' }),
+          api.studyBlocks.list(),
+        ]);
       setEntries(loadedEntries);
       setAnchors(loadedAnchors);
       setSettings(loadedSettings);
       setTerm(loadedTerm);
-      setUnscheduled(loadedUnscheduled);
-      setNeedsRevision(loadedNeedsRevision);
+      setPendingItems(loadedPendingItems);
       setStudyBlocks(loadedStudyBlocks);
       setStatus('ready');
       setError(null);
@@ -58,18 +48,16 @@ export function usePlanner(mondayIso) {
     load();
   }, [load]);
 
-  /** Reloads the blocks, commitments and the waiting lists without flashing a spinner. */
+  /** Reloads the blocks, commitments and the waiting list without flashing a spinner. */
   const refresh = useCallback(async () => {
-    const [loadedEntries, loadedAnchors, loadedUnscheduled, loadedNeedsRevision] = await Promise.all([
+    const [loadedEntries, loadedAnchors, loadedPendingItems] = await Promise.all([
       api.plan.list(mondayIso, addDays(mondayIso, 6)),
       api.anchors.effective(mondayIso, addDays(mondayIso, 6)),
-      api.plan.unscheduled(),
-      api.plan.needsRevision(),
+      api.practiceItems.list({ status: 'pending' }),
     ]);
     setEntries(loadedEntries);
     setAnchors(loadedAnchors);
-    setUnscheduled(loadedUnscheduled);
-    setNeedsRevision(loadedNeedsRevision);
+    setPendingItems(loadedPendingItems);
   }, [mondayIso]);
 
   return {
@@ -79,8 +67,7 @@ export function usePlanner(mondayIso) {
     settings,
     setSettings,
     term,
-    unscheduled,
-    needsRevision,
+    pendingItems,
     studyBlocks,
     status,
     error,

@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { getCurrentStudent } from '../db/seed.js';
 import { asyncRoute, badRequest } from '../lib/httpError.js';
 import {
-  PRACTICE_STAGE_COUNT,
   TOPIC_STATUSES,
   bulkUpdateTopics,
   createTopics,
@@ -55,9 +54,6 @@ function readTopicFields(body, { requireTitle = false } = {}) {
     target_date: optionalDate(body, 'target_date'),
     notes: optionalString(body, 'notes', { max: 20000 }),
     resources: optionalResourceList(body, 'resources'),
-    practice_stage: optionalInteger(body, 'practice_stage', { min: 1, max: PRACTICE_STAGE_COUNT }),
-    question_target: optionalInteger(body, 'question_target', { min: 0, max: 10000 }),
-    questions_done: optionalInteger(body, 'questions_done', { min: 0, max: 100000 }),
   };
 
   // Drop anything the caller did not mention so a PATCH stays a partial update.
