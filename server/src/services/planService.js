@@ -9,6 +9,7 @@ import {
   reserveSlot,
   revisionMinutes,
 } from './scheduler.js';
+import { listPendingItems, updatePracticeItem } from './practiceItemService.js';
 import { getPlannerSettings } from './settingsService.js';
 import { listStudyBlocks } from './studyBlockService.js';
 import { resolveEffectiveAnchors } from './templateService.js';
@@ -121,8 +122,9 @@ const insertEntry = (db) =>
   db.prepare(
     `INSERT INTO plan_entry
        (topic_id, scheduled_date, scheduled_start_time, scheduled_duration_minutes,
-        entry_type, revision_interval, parent_entry_id, sub_topic_index)
-     VALUES (@topic_id, @date, @start, @duration, @entry_type, @revision_interval, @parent_entry_id, @sub_topic_index)`
+        entry_type, revision_interval, parent_entry_id, sub_topic_index, practice_item_id)
+     VALUES (@topic_id, @date, @start, @duration, @entry_type, @revision_interval, @parent_entry_id,
+             @sub_topic_index, @practice_item_id)`
   );
 
 /**
@@ -184,6 +186,7 @@ function placeRevisions(studentId, studyEntries, settings) {
         revision_interval: offset.interval,
         parent_entry_id: study.id,
         sub_topic_index: study.sub_topic_index ?? null,
+        practice_item_id: null,
       });
       created.push(Number(info.lastInsertRowid));
     }
@@ -192,7 +195,30 @@ function placeRevisions(studentId, studyEntries, settings) {
   return { created, skipped };
 }
 
-/** Adds one block by hand, with its revisions if it is a study block. */
+/** A practice_item belonging to this student and (when given) this topic, or null. */
+function ownsPracticeItem(studentId, practiceItemId, topicId) {
+  if (practiceItemId == null) return null;
+  const row = getDb()
+    .prepare(
+      `SELECT pi.id, pi.topic_id FROM practice_item pi
+       JOIN topic t ON t.id = pi.topic_id JOIN subject s ON s.id = t.subject_id
+       WHERE pi.id = ? AND s.student_id = ?`
+    )
+    .get(practiceItemId, studentId);
+  if (!row) throw notFound('That master-list item no longer exists.');
+  if (topicId != null && row.topic_id !== topicId) {
+    throw badRequest('That master-list item belongs to a different topic.');
+  }
+  return row.id;
+}
+
+/**
+ * Adds one block by hand. A plain topic booking still gets its 1/3/7-day
+ * revision follow-ups the way it always has; a master-list booking
+ * (`practice_item_id` given) does not — the five-stage cycle is its own
+ * spaced repetition — and instead marks that item "scheduled" so the
+ * master list reflects it's no longer just sitting in the backlog.
+ */
 export function createPlanEntry(studentId, input) {
   const db = getDb();
   const topicId = Number(input.topic_id);
@@ -203,6 +229,7 @@ export function createPlanEntry(studentId, input) {
   const entryType = ['revision', 'practice'].includes(input.entry_type) ? input.entry_type : 'study';
   const slot = validateSlot(input);
   const subTopicIndex = readSubTopicIndex(topic, input.sub_topic_index);
+  const practiceItemId = ownsPracticeItem(studentId, input.practice_item_id, topicId);
   const settings = getPlannerSettings();
 
   const run = db.transaction(() => {
@@ -215,9 +242,16 @@ export function createPlanEntry(studentId, input) {
       revision_interval: entryType === 'revision' ? input.revision_interval ?? null : null,
       parent_entry_id: null,
       sub_topic_index: subTopicIndex,
+      practice_item_id: practiceItemId,
     });
 
     const entry = getPlanEntry(studentId, Number(info.lastInsertRowid));
+
+    if (practiceItemId) {
+      updatePracticeItem(studentId, practiceItemId, { status: 'scheduled' });
+      return { entry, revisions: null };
+    }
+
     const revisions = entryType === 'study' ? placeRevisions(studentId, [entry], settings) : null;
     return { entry, revisions };
   });
@@ -267,15 +301,23 @@ export function updatePlanEntry(studentId, entryId, changes) {
     ).run(slot.date, slot.start, slot.duration, completed ? 1 : 0, entryId);
 
     // Revisions are relative to their study block, so moving the study block
-    // to another day moves the ones not yet done along with it.
+    // to another day moves the ones not yet done along with it. A
+    // master-list booking has no such follow-ups to rebook.
     let rebooked = null;
-    if (dateMoved && existing.entry_type === 'study') {
+    if (dateMoved && existing.entry_type === 'study' && !existing.practice_item_id) {
       db.prepare('DELETE FROM plan_entry WHERE parent_entry_id = ? AND completed = 0').run(entryId);
       rebooked = placeRevisions(studentId, [getPlanEntry(studentId, entryId)], getPlannerSettings());
     }
 
     const entry = getPlanEntry(studentId, entryId);
     if (completed && !existing.completed) reflectCompletion(entry);
+
+    if (existing.practice_item_id && completed !== existing.completed) {
+      updatePracticeItem(studentId, existing.practice_item_id, {
+        status: completed ? 'done' : 'scheduled',
+        minutes_logged: completed ? entry.scheduled_duration_minutes : 0,
+      });
+    }
 
     return { entry, revisions: rebooked };
   });
@@ -287,6 +329,15 @@ export function deletePlanEntry(studentId, entryId) {
   const entry = getPlanEntry(studentId, entryId);
   // Revisions hang off the study block by foreign key, so they go too.
   getDb().prepare('DELETE FROM plan_entry WHERE id = ?').run(entryId);
+
+  // Taking an unfinished booking off the calendar puts its master-list item
+  // back in the backlog — it was scheduled but never actually done. A
+  // completed one stays marked done; the work happened even if its
+  // calendar trace didn't need to stick around.
+  if (entry.practice_item_id && !entry.completed) {
+    updatePracticeItem(studentId, entry.practice_item_id, { status: 'pending', minutes_logged: 0 });
+  }
+
   return { deleted: entry.id, tracking_number: entry.tracking_number };
 }
 
@@ -424,15 +475,26 @@ export function autoPlan(studentId, from, to) {
   }
 
   const settings = getPlannerSettings();
-  const topics = listUnscheduledTopics(studentId);
+  // Each pending master-list item is its own schedulable unit — a chapter's
+  // Stage 3, say — reshaped to look like the "topic" planTopics expects.
+  const pendingItems = listPendingItems(studentId);
+  const items = pendingItems.map((item) => ({
+    id: item.topic_id,
+    tracking_number: `${item.tracking_number}/S${item.stage}`,
+    title: `${item.topic_title} — ${item.label}`,
+    allocated_duration_minutes: item.estimated_minutes,
+    target_date: item.target_date,
+    practice_item_id: item.id,
+    stage: item.stage,
+  }));
 
-  if (topics.length === 0) {
+  if (items.length === 0) {
     return {
       placed: 0,
       revisions: 0,
       entries: [],
       skipped: [],
-      message: 'Every topic already has a place on the calendar. Nothing more to do.',
+      message: 'Every chapter is through its full master list already. Nothing more to do.',
     };
   }
 
@@ -441,7 +503,7 @@ export function autoPlan(studentId, from, to) {
     dates,
     anchors: resolveEffectiveAnchors(studentId, dates),
     existingEntries: listPlanEntries(studentId, dates[0], dates[dates.length - 1]),
-    topics,
+    topics: items,
     settings,
     notBefore: { date: today, minutes: now.getHours() * 60 + now.getMinutes() },
     studyWindowsByDay: studyWindowsMap(studentId),
@@ -457,16 +519,19 @@ export function autoPlan(studentId, from, to) {
         date: placement.date,
         start: toTime(placement.startMinutes),
         duration: placement.minutes,
-        entry_type: 'study',
+        entry_type: placement.topic.stage === 1 ? 'study' : 'practice',
         revision_interval: null,
         parent_entry_id: null,
         sub_topic_index: null,
+        practice_item_id: placement.topic.practice_item_id,
       });
+      updatePracticeItem(studentId, placement.topic.practice_item_id, { status: 'scheduled' });
       return getPlanEntry(studentId, Number(info.lastInsertRowid));
     });
 
-    const revisions = placeRevisions(studentId, created, settings);
-    return { created, revisions };
+    // The five-stage cycle is its own spaced repetition — no 1/3/7-day
+    // follow-ups to book on top of a master-list booking.
+    return { created, revisions: { created: [], skipped: [] } };
   });
 
   const { created, revisions } = run();

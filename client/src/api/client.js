@@ -104,6 +104,22 @@ export const api = {
     remove: (id) => request(`/study-blocks/${id}`, { method: 'DELETE' }),
   },
 
+  practiceItems: {
+    list: (params) => request(`/practice-items${query(params)}`).then((r) => r.items),
+    generate: (subjectId) =>
+      request('/practice-items/generate', { method: 'POST', body: { subject_id: subjectId } }).then((r) => r.items),
+    update: (id, changes) =>
+      request(`/practice-items/${id}`, { method: 'PATCH', body: changes }).then((r) => r.item),
+    mark: (id, done) => request(`/practice-items/${id}/mark`, { method: 'POST', body: { done } }).then((r) => r.item),
+  },
+
+  scheduleSnapshots: {
+    list: () => request('/schedule-snapshots').then((r) => r.snapshots),
+    save: (label) => request('/schedule-snapshots', { method: 'POST', body: { label } }).then((r) => r.snapshot),
+    gapReport: (id) => request(`/schedule-snapshots/${id}/gap-report`),
+    remove: (id) => request(`/schedule-snapshots/${id}`, { method: 'DELETE' }),
+  },
+
   errorNotes: {
     list: (params) => request(`/error-notes${query(params)}`).then((r) => r.notes),
     summary: (params) => request(`/error-notes/summary${query(params)}`).then((r) => r.counts),

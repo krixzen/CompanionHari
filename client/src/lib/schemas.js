@@ -127,19 +127,19 @@ export const schedulePlanSchema = {
   type: 'object',
   required: ['entries'],
   properties: {
+    gap_note: { type: ['string', 'null'], maxLength: 300 },
     entries: {
       type: 'array',
       minItems: 0,
       maxItems: 200,
       items: {
         type: 'object',
-        required: ['tracking_number', 'date', 'start_time', 'duration_minutes'],
+        required: ['item_reference', 'date', 'start_time', 'duration_minutes'],
         properties: {
-          tracking_number: { type: 'string', maxLength: 24 },
+          item_reference: { type: 'string', maxLength: 24 },
           date: { type: 'string', minLength: 10, maxLength: 10 },
           start_time: { type: 'string', minLength: 4, maxLength: 5 },
           duration_minutes: { type: 'integer', minimum: 5, maximum: 480 },
-          session_type: { type: 'string', enum: ['study', 'practice', 'revision'] },
           note: { type: ['string', 'null'], maxLength: 200 },
         },
       },
@@ -170,6 +170,34 @@ export const schedulePlanSchema = {
           kind: { type: 'string', enum: ['family', 'leisure'] },
           start_time: { type: 'string', minLength: 4, maxLength: 5 },
           end_time: { type: 'string', minLength: 4, maxLength: 5 },
+        },
+      },
+    },
+  },
+};
+
+/**
+ * The weekly shape of study time itself — which windows are for studying
+ * at all, before any subject gets scheduled into them. `note` is a short
+ * reason a block suits the kind of work it's meant for ("longest block —
+ * good for deep practice"), shown on the review screen but not saved.
+ */
+export const studyBlockSchema = {
+  type: 'object',
+  required: ['blocks'],
+  properties: {
+    blocks: {
+      type: 'array',
+      minItems: 0,
+      maxItems: 40,
+      items: {
+        type: 'object',
+        required: ['day_of_week', 'start_time', 'end_time'],
+        properties: {
+          day_of_week: { type: 'integer', minimum: 0, maximum: 6 },
+          start_time: { type: 'string', minLength: 4, maxLength: 5 },
+          end_time: { type: 'string', minLength: 4, maxLength: 5 },
+          note: { type: ['string', 'null'], maxLength: 200 },
         },
       },
     },

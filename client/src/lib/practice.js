@@ -1,20 +1,22 @@
 /**
- * The five-stage chapter practice cycle and the error notebook's four-tag
- * classification — both borrowed directly from the practice-plan document
- * this was built from, so the labels and guidance text stay in the
- * student's own words rather than being re-invented.
+ * The five-stage chapter practice cycle — the master list's own shape —
+ * and the error notebook's four-tag classification. Both borrowed
+ * directly from the practice-plan document this was built from, so the
+ * labels and guidance text stay in the student's own words rather than
+ * being re-invented. Stage metadata mirrors STAGES in the server's
+ * practiceItemService.js; only the label/short text needs to match, since
+ * estimated_minutes defaults are set once when a row is created and then
+ * freely editable.
  */
-export const PRACTICE_STAGES = [
-  { value: 1, label: 'NCERT solved examples', short: 'Examples' },
-  { value: 2, label: 'NCERT exercises', short: 'Exercises' },
-  { value: 3, label: 'Module (Aakash etc.)', short: 'Module' },
-  { value: 4, label: 'Previous-year questions', short: 'PYQs' },
-  { value: 5, label: 'Timed sets', short: 'Timed sets' },
+export const STAGES = [
+  { stage: 1, label: 'NCERT solved examples', short: 'Examples' },
+  { stage: 2, label: 'NCERT exercises', short: 'Exercises' },
+  { stage: 3, label: 'Module (Aakash etc.)', short: 'Module' },
+  { stage: 4, label: 'Previous-year questions', short: 'PYQs' },
+  { stage: 5, label: 'Timed set', short: 'Timed set' },
 ];
 
-export const PRACTICE_STAGE_LABELS = Object.fromEntries(
-  PRACTICE_STAGES.map((stage) => [stage.value, stage.label])
-);
+export const STAGE_META = Object.fromEntries(STAGES.map((s) => [s.stage, s]));
 
 export const ERROR_TAGS = [
   { value: 'C', label: 'Concept gap', hint: 'Did not know the idea — go back to theory.' },

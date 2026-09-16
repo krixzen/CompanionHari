@@ -65,8 +65,7 @@ export default function PlannerPage() {
     anchors,
     settings,
     term,
-    unscheduled,
-    needsRevision,
+    pendingItems,
     studyBlocks,
     status,
     error,
@@ -97,6 +96,51 @@ export default function PlannerPage() {
   const [scheduleHorizon, setScheduleHorizon] = useState('week');
   const [scheduleContext, setScheduleContext] = useState({ from: monday, to: addDays(monday, 6), anchors, entries });
   const [loadingScheduleContext, setLoadingScheduleContext] = useState(false);
+
+  // The most recent saved baseline, and how far actual progress has
+  // drifted from the pace it implied — shown on the page, and fed into
+  // the AI-scheduling prompt so it can weight a subject that's fallen
+  // behind.
+  const [latestSnapshot, setLatestSnapshot] = useState(null);
+  const [gapReport, setGapReport] = useState(null);
+  const [savingSnapshot, setSavingSnapshot] = useState(false);
+
+  const loadGapReport = async () => {
+    const snapshots = await api.scheduleSnapshots.list();
+    if (snapshots.length === 0) {
+      setLatestSnapshot(null);
+      setGapReport(null);
+      return;
+    }
+    setLatestSnapshot(snapshots[0]);
+    setGapReport(await api.scheduleSnapshots.gapReport(snapshots[0].id));
+  };
+
+  useEffect(() => {
+    loadGapReport();
+  }, []);
+
+  const saveSnapshot = async () => {
+    setSavingSnapshot(true);
+    try {
+      await api.scheduleSnapshots.save(`Baseline — ${longDate(todayIso())}`);
+      await loadGapReport();
+      toast.celebrate('Saved. Future re-plans will show how far actual progress has drifted from this.');
+    } catch (caught) {
+      toast.warn(caught.message);
+    } finally {
+      setSavingSnapshot(false);
+    }
+  };
+
+  const gapSummary = useMemo(() => {
+    if (!gapReport) return null;
+    const behind = gapReport.subjects.filter((row) => row.gap_minutes > 15);
+    if (behind.length === 0) return 'on pace or ahead across every subject against the saved baseline.';
+    return behind
+      .map((row) => `${row.subject_name} is behind by roughly ${formatMinutes(row.gap_minutes)}`)
+      .join('; ');
+  }, [gapReport]);
 
   const coverageAvailable = Boolean(term?.cover_by_date && term.cover_by_date > monday);
   const scheduleTo =
@@ -190,9 +234,7 @@ export default function PlannerPage() {
 
     const payload = active.data.current;
     const duration =
-      payload.kind === 'entry'
-        ? payload.entry.scheduled_duration_minutes
-        : payload.topic.allocated_duration_minutes;
+      payload.kind === 'entry' ? payload.entry.scheduled_duration_minutes : payload.item.estimated_minutes;
 
     const start = Math.max(0, Math.min(snapped, 24 * 60 - duration));
 
@@ -207,12 +249,14 @@ export default function PlannerPage() {
         });
       } else {
         await api.plan.create({
-          topic_id: payload.topic.id,
+          topic_id: payload.item.topic_id,
+          practice_item_id: payload.item.id,
+          entry_type: payload.item.stage === 1 ? 'study' : 'practice',
           scheduled_date: date,
           scheduled_start_time: toTime(start),
           scheduled_duration_minutes: duration,
         });
-        toast.celebrate(`${payload.topic.tracking_number} is on the calendar.`);
+        toast.celebrate(`${payload.item.tracking_number}/S${payload.item.stage} is on the calendar.`);
       }
       await refresh();
     } catch (caught) {
@@ -253,30 +297,25 @@ export default function PlannerPage() {
    */
   const resolveScheduleDraft = (data) => {
     let key = 0;
-    const entryType = (sessionType) =>
-      sessionType === 'practice' ? 'practice' : sessionType === 'revision' ? 'revision' : 'study';
 
     return data.entries.map((entry) => {
-      const match = entry.tracking_number.match(/^(.*)\/(\d{1,2})$/);
-      const baseNumber = match ? match[1] : entry.tracking_number;
-      const subTopicIndex = match ? Number(match[2]) - 1 : null;
+      // "PHY-001/S3" — tracking number plus which stage of the master list.
+      const match = entry.item_reference.match(/^(.*)\/S(\d)$/);
+      const trackingNumber = match ? match[1] : entry.item_reference;
+      const stage = match ? Number(match[2]) : null;
 
-      // A "revision" sitting names an already-covered topic, which by then
-      // has dropped off the "waiting to be studied" list — look there too.
-      const baseTopic =
-        unscheduled.find((candidate) => candidate.tracking_number === baseNumber) ??
-        needsRevision.find((candidate) => candidate.tracking_number === baseNumber);
-      const inRange = subTopicIndex === null || (baseTopic && subTopicIndex < baseTopic.sub_topics.length);
-      const topic = inRange ? baseTopic : undefined;
+      const item = pendingItems.find(
+        (candidate) => candidate.tracking_number === trackingNumber && candidate.stage === stage
+      );
 
       return {
         key: `sched-${(key += 1)}`,
-        tracking_number: entry.tracking_number,
-        topic,
-        sub_topic_index: inRange ? subTopicIndex : null,
-        sub_topic_title: topic && subTopicIndex !== null ? topic.sub_topics[subTopicIndex] : null,
-        include: Boolean(topic),
-        entry_type: entryType(entry.session_type),
+        tracking_number: entry.item_reference,
+        item,
+        topic: item ? { id: item.topic_id, title: item.topic_title, subject_colour: item.subject_colour } : undefined,
+        sub_topic_title: item ? item.label : null,
+        include: Boolean(item),
+        entry_type: item ? (item.stage === 1 ? 'study' : 'practice') : 'study',
         scheduled_date: entry.date,
         scheduled_start_time: entry.start_time,
         scheduled_duration_minutes: entry.duration_minutes,
@@ -285,7 +324,7 @@ export default function PlannerPage() {
   };
 
   const saveSchedule = async (rows) => {
-    const chosen = rows.filter((row) => row.include && row.topic);
+    const chosen = rows.filter((row) => row.include && row.item);
     if (chosen.length === 0) {
       setScheduleDraft(null);
       return;
@@ -296,11 +335,11 @@ export default function PlannerPage() {
     for (const row of chosen) {
       try {
         await api.plan.create({
-          topic_id: row.topic.id,
+          topic_id: row.item.topic_id,
+          practice_item_id: row.item.id,
           scheduled_date: row.scheduled_date,
           scheduled_start_time: row.scheduled_start_time,
           scheduled_duration_minutes: Number(row.scheduled_duration_minutes),
-          sub_topic_index: row.sub_topic_index,
           entry_type: row.entry_type,
         });
       } catch {
@@ -511,6 +550,9 @@ export default function PlannerPage() {
             <Button variant="primary" onClick={planWeek} disabled={planning}>
               {planning ? 'Planning…' : 'Plan my week'}
             </Button>
+            <Button onClick={saveSnapshot} disabled={savingSnapshot}>
+              {savingSnapshot ? 'Saving…' : 'Save as baseline'}
+            </Button>
           </>
         }
       />
@@ -606,6 +648,31 @@ export default function PlannerPage() {
         </Card>
       )}
 
+      {gapReport && gapReport.subjects.length > 0 && (
+        <Card className="mb-4 p-4">
+          <h2 className="text-sm font-semibold text-ink">
+            Progress against "{latestSnapshot.label}" ({gapReport.days_elapsed} day{gapReport.days_elapsed === 1 ? '' : 's'} in)
+          </h2>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            {gapReport.subjects.map((row) => (
+              <div key={row.subject_id} className="flex items-center gap-2">
+                <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: row.subject_colour }} />
+                <p className="text-sm text-ink-soft">
+                  {row.subject_name}
+                  {row.gap_minutes === null ? (
+                    <span className="text-ink-faint"> — set a coverage deadline to track pace</span>
+                  ) : row.gap_minutes > 15 ? (
+                    <span className="text-amber-700"> — behind by {formatMinutes(row.gap_minutes)}</span>
+                  ) : (
+                    <span className="text-sage-700"> — on pace</span>
+                  )}
+                </p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {showingOneDay && (
         <div className="mb-3 flex gap-1 overflow-x-auto pb-1">
           {dates.map((date) => (
@@ -645,7 +712,7 @@ export default function PlannerPage() {
             onOpenEntry={setOpenEntry}
             compact={isNarrow}
           />
-          <UnscheduledPanel topics={unscheduled} />
+          <UnscheduledPanel items={pendingItems} />
         </div>
 
         <DragOverlay dropAnimation={null}>
@@ -653,7 +720,7 @@ export default function PlannerPage() {
             <div className="rounded-lg bg-sage-700 px-2.5 py-1.5 text-xs font-medium text-white shadow-soft">
               {dragging.kind === 'entry'
                 ? dragging.entry.tracking_number
-                : dragging.topic.tracking_number}
+                : `${dragging.item.tracking_number}/S${dragging.item.stage}`}
             </div>
           )}
         </DragOverlay>
@@ -719,7 +786,7 @@ export default function PlannerPage() {
         />
       )}
 
-      {entries.length === 0 && unscheduled.length === 0 && (
+      {entries.length === 0 && pendingItems.length === 0 && (
         <div className="mt-4">
           <EmptyState
             title="There are no topics to plan yet."
@@ -777,13 +844,13 @@ export default function PlannerPage() {
           from: scheduleContext.from,
           to: scheduleContext.to,
           anchors: scheduleContext.anchors,
-          topics: unscheduled,
-          needsRevision,
+          pendingItems,
           existingEntries: scheduleContext.entries,
           settings,
           examDate: term?.exam_date,
           coverByDate: term?.cover_by_date,
           studyBlocks,
+          gapSummary,
         })}
         schema={schedulePlanSchema}
         saveLabel="Review this schedule"
@@ -802,6 +869,7 @@ export default function PlannerPage() {
           setMealDraft(resolveMealDraft(data));
           setPersonalDraft(resolvePersonalDraft(data));
           setScheduleBridgeOpen(false);
+          if (data.gap_note) toast.warn(data.gap_note);
         }}
       />
 
