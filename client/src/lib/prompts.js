@@ -340,14 +340,16 @@ This is a repeating weekly pattern, the same shape every week, not a specific da
 Already fixed every week — never place a study block over any of this, and remember a commitment away from home isn't over the moment it ends if it says so:
 ${busyLines || '(nothing fixed recorded yet)'}
 
-What the student says they actually have left over, by part of the day (this is a general description of a typical week, not a promise every single day matches it exactly):
+What the student says they actually have left over, by part of the day — these are hard limits, not inspiration. Read each one carefully: it may list different clock times for different days within the same part of the day (e.g. "Monday, Tuesday 2:30–3:15pm" as one clause and "Wednesday, Friday 4–5pm" as another within "Afternoon"), so match each day to its own clause rather than one single time for the whole day-part:
 ${dayPartLines || '(not specified — use your judgement from what is already fixed)'}
 ${notes && notes.trim() ? `\nAnything else worth knowing: ${notes.trim()}\n` : ''}
-Design the blocks with real judgement, not just "every free minute becomes a study block":
+Hard constraint, non-negotiable: every block's start_time and end_time must fall entirely inside one of the windows stated above for that exact day. Never place a block on a day with no stated window, and never place a block outside the clock times given for that day even by a few minutes — if you want breathing room, start the block later within the window or make it shorter, but do not shift or invent a window that wasn't stated. Double-check every block against the source text above before including it.
+
+Within that constraint, use real judgement:
+- You don't have to fill a whole window — a stated 5:30–6:15am slot can host a 30-minute block starting at 5:35, leaving the rest as breathing room or unused.
 - Mix what a block is good for across the week — some blocks suit focused problem-solving (a longer stretch, mid-afternoon or a free morning), some suit a short low-effort review (right after a tiring commitment), some suit calm first-pass learning (fresher parts of the day). Say which, briefly, in each block's "note".
-- Leave real breathing room around a block, especially right after getting home from somewhere — don't schedule the instant a commitment (plus its travel time) ends.
-- Build in actual leisure and rest, not just study — a day that is wall-to-wall blocks is a worse plan than one with fewer, better-placed blocks and real gaps left alone. Not every day needs a block at all.
-- A short block (20–30 minutes) is fine and often better than a long one, especially on a tired day — don't pad a block out just to fill time.
+- Build in actual leisure and rest, not just study — a day that is wall-to-wall blocks is a worse plan than one with fewer, better-placed blocks and real gaps left alone. Not every stated window needs a block — skipping one entirely for rest is fine.
+- A short block (20–30 minutes) is fine and often better than a long one, especially on a tired day — don't pad a block out just to fill a whole window.
 - Keep it realistic for a teenager to actually follow, not a machine executing a schedule.
 
 Reply with JSON only. No explanation before or after it, and no markdown code fence.
