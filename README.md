@@ -27,39 +27,62 @@ terminal.
 
 ---
 
-## Installing (once)
+## Starting the app — the easy way
 
-1. Open a terminal.
+No terminal typing needed for day-to-day use. In this folder there is a file
+called:
+
+- **Mac:** `start-mac.command`
+- **Windows:** `start-windows.bat`
+
+**Double-click it.** A window will open showing some scrolling text — that is
+normal, it is the app's own log, not something to type into. Leave it open
+while you use the app; closing that window stops the app. Your browser will
+open on its own after a few seconds, at **http://localhost:5173**. If it
+doesn't, open that address yourself.
+
+The very first time only, it also quietly runs the one-time setup step
+(`npm install`) before starting, so the first launch takes a minute or two
+longer than every launch after that.
+
+**On a Mac, the first double-click may show a warning** like "cannot be
+opened because it is from an unidentified developer" — this is macOS being
+cautious about anything downloaded from the internet, not a real problem.
+Instead of double-clicking, **right-click (or Control-click) the file and
+choose "Open"**, then confirm. You only need to do that once; after that,
+double-clicking works normally.
+
+To stop the app at any time, close that window, or click into it and press
+`Ctrl + C`.
+
+---
+
+## Starting the app — the terminal way
+
+Useful if the double-click file doesn't work for some reason, or you want to
+see exactly what's happening.
+
+1. Open a terminal (on Windows: "Command Prompt"; on Mac: "Terminal").
 2. Move into this project folder. For example:
    ```
    cd path/to/study-planner
    ```
-3. Install everything with one command:
+3. The first time only, install everything with one command:
    ```
    npm install
    ```
-
-This downloads the pieces the app is built from. It takes a minute or two the
-first time and never needs to be repeated unless the project changes.
-
----
-
-## Running the app
-
-From the same folder, run:
-
-```
-npm run dev
-```
-
-You will see two sets of messages appear — one from the **server** (the part
-that stores your data) and one from the **client** (the part you look at).
-
-Then open your browser at:
-
-**http://localhost:5173**
-
-To stop the app, click on the terminal and press `Ctrl + C`.
+   This downloads the pieces the app is built from. It takes a minute or two
+   and never needs to be repeated unless the project changes (e.g. after
+   re-downloading an updated copy).
+4. Start the app:
+   ```
+   npm run dev
+   ```
+   You will see two sets of messages appear — one from the **server** (the
+   part that stores your data) and one from the **client** (the part you look
+   at).
+5. Open your browser at **http://localhost:5173**.
+6. To stop the app, click on the terminal and press `Ctrl + C`.
 
 ---
 
