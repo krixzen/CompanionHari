@@ -89,6 +89,12 @@ function AnchorBlock({ anchor, window }) {
 
   if (height <= 0) return null;
   const { tint } = anchorStyle(anchor.type);
+  // A synthetic "study time" wash (the Study time only view's background for
+  // each agreed window) is just a tint — its own label would sit right where
+  // whatever's actually scheduled inside it draws its label, and on a short
+  // window the two overlap into an unreadable mess. Real anchors still show
+  // theirs; nothing is usually drawn on top of School or Coaching.
+  const showLabel = anchor.type !== 'study' && height > 22;
 
   return (
     <div
@@ -96,7 +102,7 @@ function AnchorBlock({ anchor, window }) {
       style={{ top, height, backgroundColor: `${tint}1f` }}
       title={`${anchor.label} · ${friendlyTime(anchor.start_time)}–${friendlyTime(anchor.end_time)}`}
     >
-      {height > 22 && (
+      {showLabel && (
         <span className="text-[11px] font-medium leading-tight" style={{ color: tint }}>
           {anchor.label}
         </span>
