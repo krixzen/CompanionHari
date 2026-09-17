@@ -198,7 +198,7 @@ export default function TestDetailPage() {
         onClose={() => setBridgeOpen(false)}
         title="Ask what this test shows"
         purpose="This app never contacts an AI service — copy the prompt across yourself, then bring the reply back."
-        prompt={testPatternPrompt({ test, results: test.results })}
+        prompt={testPatternPrompt({ test, results: test.results, topics })}
         schema={testPatternSchema}
         saveLabel="Save this analysis"
         renderPreview={(data) => <TestPatternView payload={data} />}

@@ -78,3 +78,49 @@ export function deleteAnalysis(studentId, analysisId) {
   getDb().prepare('DELETE FROM analysis WHERE id = ? AND student_id = ?').run(analysisId, studentId);
   return { deleted: analysis.id };
 }
+
+/**
+ * Topics a recent test-pattern analysis called out by tracking number. Only
+ * the last few analyses count — an issue from months ago that was never
+ * mentioned again is not worth resurfacing forever.
+ */
+export function flaggedTopics(studentId, { recentAnalyses = 5, limit = 10 } = {}) {
+  const db = getDb();
+
+  const rows = db
+    .prepare(
+      `SELECT payload FROM analysis
+       WHERE student_id = ? AND analysis_type = 'test_pattern'
+       ORDER BY created_at DESC, id DESC
+       LIMIT ?`
+    )
+    .all(studentId, recentAnalyses);
+
+  const trackingNumbers = new Set();
+  for (const row of rows) {
+    let payload;
+    try {
+      payload = JSON.parse(row.payload);
+    } catch {
+      continue;
+    }
+    for (const area of payload.weak_areas ?? []) {
+      if (area.tracking_number) trackingNumbers.add(area.tracking_number);
+    }
+  }
+
+  if (trackingNumbers.size === 0) return [];
+
+  const placeholders = [...trackingNumbers].map(() => '?').join(',');
+  return db
+    .prepare(
+      `SELECT t.id, t.tracking_number, t.title, t.status,
+              s.name AS subject_name, s.colour AS subject_colour
+       FROM topic t
+       JOIN subject s ON s.id = t.subject_id
+       WHERE s.student_id = ? AND t.tracking_number IN (${placeholders})
+       ORDER BY s.display_order, t.display_order
+       LIMIT ?`
+    )
+    .all(studentId, ...trackingNumbers, limit);
+}

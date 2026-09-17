@@ -1,5 +1,6 @@
 import { getDb } from '../db/index.js';
 import { badRequest, notFound } from '../lib/httpError.js';
+import { todayIso } from '../lib/time.js';
 import { ensureMasterList, markFirstStageDone } from './practiceItemService.js';
 import { getSubject } from './subjectService.js';
 import { allocateTrackingNumbers } from './trackingNumber.js';
@@ -222,6 +223,40 @@ export function updateTopic(studentId, topicId, changes) {
   if (['revised', 'mastered'].includes(changes.status)) markFirstStageDone(topicId);
 
   return getTopic(studentId, topicId);
+}
+
+/** Topics whose target date has come and gone without being revised or mastered. */
+export function overdueTopics(studentId) {
+  return getDb()
+    .prepare(
+      `SELECT t.id, t.tracking_number, t.title, t.target_date, t.status,
+              s.name AS subject_name, s.colour AS subject_colour
+       FROM topic t
+       JOIN subject s ON s.id = t.subject_id
+       WHERE s.student_id = ?
+         AND t.target_date IS NOT NULL
+         AND t.target_date < ?
+         AND t.status NOT IN ('revised', 'mastered')
+       ORDER BY t.target_date`
+    )
+    .all(studentId, todayIso());
+}
+
+/** Topics none of whose master-list stages has ever been scheduled or done. */
+export function unscheduledTopics(studentId) {
+  return getDb()
+    .prepare(
+      `SELECT t.id, t.tracking_number, t.title, t.target_date,
+              s.name AS subject_name, s.colour AS subject_colour
+       FROM topic t
+       JOIN subject s ON s.id = t.subject_id
+       WHERE s.student_id = ?
+         AND NOT EXISTS (
+           SELECT 1 FROM practice_item pi WHERE pi.topic_id = t.id AND pi.status != 'pending'
+         )
+       ORDER BY s.display_order, t.display_order`
+    )
+    .all(studentId);
 }
 
 export function deleteTopic(studentId, topicId) {

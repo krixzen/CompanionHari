@@ -168,3 +168,58 @@ export function pendingMinutesBySubject(studentId) {
   for (const row of rows) totals[row.subject_id] = row.minutes;
   return totals;
 }
+
+/**
+ * How much of the syllabus has a slot at all ("planned" — scheduled or
+ * done) versus how much is actually finished ("done"), overall and per
+ * subject. A topic's five stages count individually, so a topic that is
+ * half scheduled shows up as half planned rather than all-or-nothing.
+ */
+export function syllabusCoverage(studentId) {
+  const rows = getDb()
+    .prepare(
+      `SELECT s.id AS subject_id, s.name, s.colour, s.code,
+              COUNT(pi.id) AS total_items,
+              SUM(CASE WHEN pi.status != 'pending' THEN 1 ELSE 0 END) AS planned_items,
+              SUM(CASE WHEN pi.status = 'done' THEN 1 ELSE 0 END) AS done_items
+       FROM subject s
+       JOIN topic t ON t.subject_id = s.id
+       JOIN practice_item pi ON pi.topic_id = t.id
+       WHERE s.student_id = ?
+       GROUP BY s.id
+       ORDER BY s.display_order`
+    )
+    .all(studentId);
+
+  const percent = (count, total) => (total > 0 ? Math.round((count / total) * 100) : 0);
+
+  const bySubject = rows.map((row) => ({
+    subject_id: row.subject_id,
+    name: row.name,
+    colour: row.colour,
+    code: row.code,
+    total_items: row.total_items,
+    planned_items: row.planned_items,
+    done_items: row.done_items,
+    percent_planned: percent(row.planned_items, row.total_items),
+    percent_done: percent(row.done_items, row.total_items),
+  }));
+
+  const totals = bySubject.reduce(
+    (acc, row) => ({
+      total_items: acc.total_items + row.total_items,
+      planned_items: acc.planned_items + row.planned_items,
+      done_items: acc.done_items + row.done_items,
+    }),
+    { total_items: 0, planned_items: 0, done_items: 0 }
+  );
+
+  return {
+    overall: {
+      ...totals,
+      percent_planned: percent(totals.planned_items, totals.total_items),
+      percent_done: percent(totals.done_items, totals.total_items),
+    },
+    bySubject,
+  };
+}

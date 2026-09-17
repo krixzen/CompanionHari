@@ -28,6 +28,9 @@ export function TestPatternView({ payload }) {
               // eslint-disable-next-line react/no-array-index-key
               <li key={index} className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-ink-soft">
                 <span className="font-medium text-ink">
+                  {area.tracking_number && (
+                    <span className="mr-1.5 font-mono text-xs text-amber-800">{area.tracking_number}</span>
+                  )}
                   {area.subject}
                   {area.topic ? ` · ${area.topic}` : ''}
                 </span>

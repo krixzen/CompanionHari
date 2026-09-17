@@ -1,6 +1,29 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { anchorStyle } from '../lib/anchors.js';
+import { formatMinutes } from '../lib/format.js';
 import { DAY_NAMES, dayNumber, dayOfWeek, friendlyTime, toMinutes } from '../lib/week.js';
+
+/**
+ * Whether a day has more study/practice/revision booked than it has free
+ * time for, given the day's fixed commitments (plus their travel buffer)
+ * inside the usual day window. A soft warning, never a block — the student
+ * can still choose to pack a day tight.
+ */
+function overloadedDay(date, dayAnchors, dayEntries, settings) {
+  const dayStart = toMinutes(settings.day_start);
+  const dayEnd = toMinutes(settings.day_end);
+
+  const busyMinutes = dayAnchors.reduce((sum, anchor) => {
+    const start = toMinutes(anchor.start_time);
+    const end = toMinutes(anchor.end_time) + (anchor.buffer_after_minutes || 0);
+    return sum + Math.max(0, Math.min(end, dayEnd) - Math.max(start, dayStart));
+  }, 0);
+  const freeMinutes = Math.max(dayEnd - dayStart - busyMinutes, 0);
+
+  const scheduledMinutes = dayEntries.reduce((sum, entry) => sum + entry.scheduled_duration_minutes, 0);
+
+  return scheduledMinutes > freeMinutes ? { scheduledMinutes, freeMinutes } : null;
+}
 
 // Sized to read like a real calendar app (Outlook, Google Calendar) rather
 // than a cramped widget — tall enough that an hour's worth of blocks is
@@ -184,23 +207,43 @@ export function WeekGrid({ dates, entries, anchors, settings, today, onOpenEntry
     <div className="overflow-hidden rounded-xl2 bg-paper-raised shadow-soft">
       <div className="grid border-b border-black/5" style={{ gridTemplateColumns: columns }}>
         <div />
-        {dates.map((date) => (
-          <div
-            key={date}
-            className={`border-l border-black/5 px-2 py-2 text-center ${
-              date === today ? 'bg-sage-50' : ''
-            }`}
-          >
-            <p className="text-[11px] uppercase tracking-wide text-ink-faint">
-              {DAY_NAMES[dayOfWeek(date)]}
-            </p>
-            <p
-              className={`text-sm font-semibold ${date === today ? 'text-sage-700' : 'text-ink'}`}
+        {dates.map((date) => {
+          const overload = overloadedDay(
+            date,
+            anchorsByDay.get(dayOfWeek(date)) ?? [],
+            entriesByDate.get(date) ?? [],
+            settings
+          );
+
+          return (
+            <div
+              key={date}
+              className={`border-l border-black/5 px-2 py-2 text-center ${
+                date === today ? 'bg-sage-50' : ''
+              }`}
             >
-              {dayNumber(date)}
-            </p>
-          </div>
-        ))}
+              <p className="text-[11px] uppercase tracking-wide text-ink-faint">
+                {DAY_NAMES[dayOfWeek(date)]}
+              </p>
+              <p
+                className={`flex items-center justify-center gap-1 text-sm font-semibold ${
+                  date === today ? 'text-sage-700' : 'text-ink'
+                }`}
+              >
+                {dayNumber(date)}
+                {overload && (
+                  <span
+                    aria-label={`More is booked (${formatMinutes(overload.scheduledMinutes)}) than there is free time for (${formatMinutes(overload.freeMinutes)})`}
+                    title={`${formatMinutes(overload.scheduledMinutes)} booked, but only ${formatMinutes(overload.freeMinutes)} free today`}
+                    className="text-amber-600"
+                  >
+                    ⚠
+                  </span>
+                )}
+              </p>
+            </div>
+          );
+        })}
       </div>
 
       <div className="max-h-[calc(100vh-13rem)] overflow-y-auto">
