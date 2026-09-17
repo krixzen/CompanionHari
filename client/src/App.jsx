@@ -5,6 +5,7 @@ import { ToastProvider } from './hooks/useToast.jsx';
 import AnchorsPage from './pages/AnchorsPage.jsx';
 import ErrorNotebookPage from './pages/ErrorNotebookPage.jsx';
 import HomePage from './pages/HomePage.jsx';
+import ParentPage from './pages/ParentPage.jsx';
 import PlannerPage from './pages/PlannerPage.jsx';
 import ProgressPage from './pages/ProgressPage.jsx';
 import SubjectsPage from './pages/SubjectsPage.jsx';
@@ -23,6 +24,7 @@ export default function App() {
             <Route path="/planner" element={<PlannerPage />} />
             <Route path="/anchors" element={<AnchorsPage />} />
             <Route path="/progress" element={<ProgressPage />} />
+            <Route path="/parent" element={<ParentPage />} />
             <Route path="/subjects" element={<SubjectsPage />} />
             <Route path="/subjects/:subjectId" element={<TopicsPage />} />
             <Route path="/subjects/:subjectId/import" element={<ImportPage />} />

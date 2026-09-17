@@ -54,6 +54,7 @@ export default function ProgressPage() {
     overdue,
     unscheduled,
     flagged,
+    streak,
   } = report;
   const hasSessions = summary.allTime.sessions > 0;
   const hasSyllabus = coverage.overall.total_items > 0;
@@ -70,17 +71,22 @@ export default function ProgressPage() {
             : 'Tick a block off on your week, and how it went gets recorded here.'
         }
         actions={
-          <div className="flex gap-1">
-            {RANGES.map((range) => (
-              <Button
-                key={range.days}
-                size="sm"
-                variant={days === range.days ? 'primary' : 'quiet'}
-                onClick={() => setDays(range.days)}
-              >
-                {range.label}
-              </Button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1">
+              {RANGES.map((range) => (
+                <Button
+                  key={range.days}
+                  size="sm"
+                  variant={days === range.days ? 'primary' : 'quiet'}
+                  onClick={() => setDays(range.days)}
+                >
+                  {range.label}
+                </Button>
+              ))}
+            </div>
+            <Link to="/parent" className="text-sm text-sage-700 underline-offset-2 hover:underline">
+              Parent view →
+            </Link>
           </div>
         }
       />
@@ -106,6 +112,8 @@ export default function ProgressPage() {
           </EmptyState>
         ) : (
         <div className="space-y-4">
+          <StreakLine streak={streak} />
+
           <StatRow summary={summary} />
 
           <WeeklyActionPlanCard progressSummary={summary} />
@@ -181,6 +189,29 @@ function subheadline(summary) {
   return `${days.charAt(0).toUpperCase()}${days.slice(1)}, ${subjects}.${comparison}`;
 }
 
+/**
+ * One quiet, positive number: consecutive days studied. It only ever counts
+ * up — there is deliberately no broken-streak warning, no red X for a
+ * missed day, and no "longest streak" to fall short of.
+ */
+export function StreakLine({ streak }) {
+  if (streak.days === 0) {
+    return <p className="text-sm text-ink-soft">Every streak starts with day one — log today's session to begin.</p>;
+  }
+
+  const day = streak.days === 1 ? 'day' : 'days';
+  const tail = streak.studiedToday ? '' : ' — log today\'s to keep it going';
+
+  return (
+    <p className="text-sm text-ink-soft">
+      <span className="font-semibold text-sage-700">
+        {streak.days} {day} in a row
+      </span>
+      {tail}.
+    </p>
+  );
+}
+
 function StatRow({ summary }) {
   const tiles = [
     { label: 'This week', value: formatMinutes(summary.week.minutes) },
@@ -229,7 +260,7 @@ function CoverageBar({ percentPlanned, percentDone, colour }) {
  * individually) has a slot on the calendar at all, and how much of that is
  * actually finished — overall, and broken down by subject.
  */
-function SyllabusCoverage({ coverage }) {
+export function SyllabusCoverage({ coverage }) {
   const { overall, bySubject } = coverage;
 
   return (
@@ -284,7 +315,7 @@ const ATTENTION_REASONS = {
  * more than one reason applies — that's the point, it means it needs it
  * most.
  */
-function NeedsAttention({ shaky, overdue, unscheduled, flagged }) {
+export function NeedsAttention({ shaky, overdue, unscheduled, flagged }) {
   const rows = [
     ...shaky.map((topic) => ({ ...topic, reason: 'shaky', detail: null })),
     ...overdue.map((topic) => ({ ...topic, reason: 'overdue', detail: `due ${longDate(topic.target_date)}` })),

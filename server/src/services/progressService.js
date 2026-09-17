@@ -8,8 +8,10 @@ import { overdueTopics, unscheduledTopics } from './topicService.js';
  * The numbers behind the Progress screen.
  *
  * Everything here counts what happened, never what didn't. There is no
- * "missed" figure and no streak to break: a day with no session simply is not
- * counted. Progress should read as evidence that the work is adding up.
+ * "missed" figure: a day with no session simply is not counted, and the one
+ * streak figure below only ever counts up — it quietly resets rather than
+ * flagging a broken streak. Progress should read as evidence that the work
+ * is adding up.
  */
 
 /** Minutes studied on each day in a range, with empty days present as zero. */
@@ -185,6 +187,36 @@ export function shakyTopics(studentId, limit = 6) {
     .all(studentId, limit);
 }
 
+/**
+ * Consecutive days with at least one session, counting back from today. If
+ * nothing is logged yet today, that doesn't break the streak on its own —
+ * the count starts from yesterday instead, since the day isn't over. There
+ * is deliberately no "longest streak" or "missed" figure alongside this:
+ * one positive number, never a broken-streak warning.
+ */
+export function currentStreak(studentId) {
+  const rows = getDb()
+    .prepare(
+      `SELECT DISTINCT ss.date FROM study_session ss
+       JOIN topic t   ON t.id = ss.topic_id
+       JOIN subject s ON s.id = t.subject_id
+       WHERE s.student_id = ?`
+    )
+    .all(studentId);
+  const studiedDates = new Set(rows.map((row) => row.date));
+
+  const today = todayIso();
+  const studiedToday = studiedDates.has(today);
+  let cursor = studiedToday ? today : addDays(today, -1);
+  let days = 0;
+  while (studiedDates.has(cursor)) {
+    days += 1;
+    cursor = addDays(cursor, -1);
+  }
+
+  return { days, studiedToday };
+}
+
 export function progressReport(studentId, { from, to }) {
   return {
     from,
@@ -199,5 +231,6 @@ export function progressReport(studentId, { from, to }) {
     overdue: overdueTopics(studentId),
     unscheduled: unscheduledTopics(studentId),
     flagged: flaggedTopics(studentId),
+    streak: currentStreak(studentId),
   };
 }

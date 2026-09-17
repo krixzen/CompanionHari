@@ -20,6 +20,7 @@ import { longDate } from '../lib/week.js';
 export function WeeklyActionPlanCard({ progressSummary }) {
   const toast = useToast();
   const [plan, setPlan] = useState(null);
+  const [previousPlan, setPreviousPlan] = useState(null);
   const [topics, setTopics] = useState([]);
   const [status, setStatus] = useState('loading');
   const [bridgeOpen, setBridgeOpen] = useState(false);
@@ -34,6 +35,7 @@ export function WeeklyActionPlanCard({ progressSummary }) {
         api.topics.list(),
       ]);
       setPlan(plans[0] ?? null);
+      setPreviousPlan(plans[1] ?? null);
       setTopics(loadedTopics);
       setStatus('ready');
     } catch {
@@ -51,6 +53,7 @@ export function WeeklyActionPlanCard({ progressSummary }) {
       recentPatterns: recentPatterns.slice(0, 3),
       topics,
       progressSummary,
+      lastWeekGoals: plan?.payload?.behavioural_goals,
     });
   };
 
@@ -104,6 +107,22 @@ export function WeeklyActionPlanCard({ progressSummary }) {
 
       {plan && <WeeklyPlanView payload={plan.payload} onAddPriority={addPriority} addingKey={addingKey} />}
 
+      {previousPlan?.payload?.behavioural_goals?.length > 0 && (
+        <div className="mt-3 border-t border-black/5 pt-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
+            Last week's goals — from {longDate(previousPlan.created_at.slice(0, 10))}
+          </p>
+          <ul className="mt-1 space-y-1 text-sm">
+            {previousPlan.payload.behavioural_goals.map((goal) => (
+              <li key={goal.goal} className="text-ink-soft">
+                <span className="text-ink">{goal.goal}</span>
+                <span className="text-xs text-ink-faint"> — measured by {goal.how_to_measure}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <LLMBridge
         open={bridgeOpen}
         onClose={() => setBridgeOpen(false)}
@@ -115,6 +134,7 @@ export function WeeklyActionPlanCard({ progressSummary }) {
         renderPreview={(data) => <WeeklyPlanView payload={data} />}
         onSave={async (data) => {
           const saved = await api.analysis.create({ analysis_type: 'weekly_action_plan', payload: data });
+          setPreviousPlan(plan);
           setPlan(saved);
           setBridgeOpen(false);
           toast.celebrate('This week is sorted.');
