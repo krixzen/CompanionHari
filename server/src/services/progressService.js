@@ -1,5 +1,8 @@
 import { getDb } from '../db/index.js';
 import { addDays, datesBetween, startOfWeek, todayIso } from '../lib/time.js';
+import { flaggedTopics } from './analysisService.js';
+import { syllabusCoverage } from './practiceItemService.js';
+import { overdueTopics, unscheduledTopics } from './topicService.js';
 
 /**
  * The numbers behind the Progress screen.
@@ -192,5 +195,9 @@ export function progressReport(studentId, { from, to }) {
     confidence: confidenceBySubject(studentId, from, to),
     status: topicsByStatus(studentId),
     shaky: shakyTopics(studentId),
+    coverage: syllabusCoverage(studentId),
+    overdue: overdueTopics(studentId),
+    unscheduled: unscheduledTopics(studentId),
+    flagged: flaggedTopics(studentId),
   };
 }

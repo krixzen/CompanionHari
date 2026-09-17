@@ -11,6 +11,7 @@ import { SessionHistory } from '../components/SessionHistory.jsx';
 import { WeeklyActionPlanCard } from '../components/WeeklyActionPlanCard.jsx';
 import { Button, Card, EmptyState, ErrorNote, Spinner } from '../components/ui.jsx';
 import { formatMinutes } from '../lib/format.js';
+import { longDate } from '../lib/week.js';
 
 const RANGES = [
   { days: 28, label: '4 weeks' },
@@ -42,8 +43,21 @@ export default function ProgressPage() {
   if (status === 'loading' && !report) return <Spinner label="Adding it all up…" />;
   if (status === 'error') return <ErrorNote onRetry={load}>{error}</ErrorNote>;
 
-  const { summary, daily, bySubject, confidence, status: statusCounts, shaky } = report;
+  const {
+    summary,
+    daily,
+    bySubject,
+    confidence,
+    status: statusCounts,
+    shaky,
+    coverage,
+    overdue,
+    unscheduled,
+    flagged,
+  } = report;
   const hasSessions = summary.allTime.sessions > 0;
+  const hasSyllabus = coverage.overall.total_items > 0;
+  const needsAttentionCount = shaky.length + overdue.length + unscheduled.length + flagged.length;
 
   return (
     <div>
@@ -71,19 +85,26 @@ export default function ProgressPage() {
         }
       />
 
-      {!hasSessions ? (
-        <EmptyState
-          title="This page fills itself in."
-          action={
-            <Link to="/planner">
-              <Button variant="primary">Go to your week</Button>
-            </Link>
-          }
-        >
-          Every session you record adds to the picture here — how much, on which subjects, and how
-          it felt at the time.
-        </EmptyState>
-      ) : (
+      <div className="space-y-4">
+        {hasSyllabus && <SyllabusCoverage coverage={coverage} />}
+
+        {needsAttentionCount > 0 && (
+          <NeedsAttention shaky={shaky} overdue={overdue} unscheduled={unscheduled} flagged={flagged} />
+        )}
+
+        {!hasSessions ? (
+          <EmptyState
+            title="This page fills itself in."
+            action={
+              <Link to="/planner">
+                <Button variant="primary">Go to your week</Button>
+              </Link>
+            }
+          >
+            Every session you record adds to the picture here — how much, on which subjects, and how
+            it felt at the time.
+          </EmptyState>
+        ) : (
         <div className="space-y-4">
           <StatRow summary={summary} />
 
@@ -118,11 +139,10 @@ export default function ProgressPage() {
             <ConfidencePanels series={confidence} />
           </ChartFrame>
 
-          {shaky.length > 0 && <ShakyTopics topics={shaky} />}
-
           <SessionHistory onChanged={load} />
         </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -184,26 +204,120 @@ function StatRow({ summary }) {
   );
 }
 
-function ShakyTopics({ topics }) {
+/**
+ * A thin bar out of the whole syllabus: a lighter fill out to "planned",
+ * a solid fill out to "done" laid on top of it (done is always a subset of
+ * planned, so the solid fill never has to exceed the lighter one).
+ */
+function CoverageBar({ percentPlanned, percentDone, colour }) {
+  return (
+    <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-paper-sunk">
+      <div
+        className="absolute inset-y-0 left-0 rounded-full"
+        style={{ width: `${percentPlanned}%`, backgroundColor: `${colour}40` }}
+      />
+      <div
+        className="absolute inset-y-0 left-0 rounded-full"
+        style={{ width: `${percentDone}%`, backgroundColor: colour }}
+      />
+    </div>
+  );
+}
+
+/**
+ * How much of the syllabus (every chapter's five stages, counted
+ * individually) has a slot on the calendar at all, and how much of that is
+ * actually finished — overall, and broken down by subject.
+ */
+function SyllabusCoverage({ coverage }) {
+  const { overall, bySubject } = coverage;
+
   return (
     <Card className="p-5">
-      <h2 className="text-sm font-semibold text-ink">Worth another look</h2>
+      <h2 className="text-sm font-semibold text-ink">Syllabus coverage</h2>
       <p className="mt-0.5 text-xs text-ink-faint">
-        The topics you last rated as shaky. Knowing which ones they are is most of the work.
+        Planned counts anything with a slot on the calendar; done is what's actually finished.
       </p>
-      <ul className="mt-3 space-y-2">
-        {topics.map((topic) => (
-          <li key={topic.id} className="flex items-center gap-2 text-sm">
-            <span
-              aria-hidden="true"
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: topic.subject_colour }}
+
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-2">
+        <div className="rounded-xl2 bg-paper-sunk px-4 py-3">
+          <p className="text-xs text-ink-faint">Planned overall</p>
+          <p className="mt-1 text-xl font-semibold text-ink">{overall.percent_planned}%</p>
+        </div>
+        <div className="rounded-xl2 bg-paper-sunk px-4 py-3">
+          <p className="text-xs text-ink-faint">Done overall</p>
+          <p className="mt-1 text-xl font-semibold text-ink">{overall.percent_done}%</p>
+        </div>
+      </div>
+
+      <ul className="mt-4 space-y-2.5">
+        {bySubject.map((subject) => (
+          <li key={subject.subject_id} className="flex items-center gap-3 text-sm">
+            <span className="w-24 shrink-0 truncate text-ink-soft">{subject.name}</span>
+            <CoverageBar
+              percentPlanned={subject.percent_planned}
+              percentDone={subject.percent_done}
+              colour={subject.colour}
             />
-            <span className="font-mono text-xs text-ink-faint">{topic.tracking_number}</span>
-            <span className="min-w-0 flex-1 truncate text-ink">{topic.title}</span>
-            <span className="shrink-0 text-xs text-ink-faint">{topic.subject_name}</span>
+            <span className="w-28 shrink-0 text-right text-xs text-ink-faint">
+              {subject.percent_planned}% planned · {subject.percent_done}% done
+            </span>
           </li>
         ))}
+      </ul>
+    </Card>
+  );
+}
+
+const ATTENTION_REASONS = {
+  shaky: { label: 'Shaky', tone: 'text-amber-700 bg-amber-50' },
+  overdue: { label: 'Overdue', tone: 'text-rose-700 bg-rose-50' },
+  unscheduled: { label: 'Not scheduled', tone: 'text-ink-soft bg-paper-sunk' },
+  flagged: { label: 'From a test', tone: 'text-sage-700 bg-sage-50' },
+};
+
+/**
+ * Everything worth a second look, in one list: topics last rated shaky,
+ * topics whose target date has passed without being revised or mastered,
+ * topics that have never had a single stage booked, and topics a recent
+ * test analysis called out by name. A topic can appear more than once if
+ * more than one reason applies — that's the point, it means it needs it
+ * most.
+ */
+function NeedsAttention({ shaky, overdue, unscheduled, flagged }) {
+  const rows = [
+    ...shaky.map((topic) => ({ ...topic, reason: 'shaky', detail: null })),
+    ...overdue.map((topic) => ({ ...topic, reason: 'overdue', detail: `due ${longDate(topic.target_date)}` })),
+    ...unscheduled.map((topic) => ({ ...topic, reason: 'unscheduled', detail: null })),
+    ...flagged.map((topic) => ({ ...topic, reason: 'flagged', detail: null })),
+  ];
+
+  return (
+    <Card className="p-5">
+      <h2 className="text-sm font-semibold text-ink">Needs attention</h2>
+      <p className="mt-0.5 text-xs text-ink-faint">
+        Shaky from your own ratings, overdue against a target date, or never scheduled at all.
+      </p>
+      <ul className="mt-3 space-y-2">
+        {rows.map((topic, index) => {
+          const reason = ATTENTION_REASONS[topic.reason];
+          return (
+            // A topic can carry more than one reason, so the key includes it.
+            <li key={`${topic.id}-${topic.reason}-${index}`} className="flex items-center gap-2 text-sm">
+              <span
+                aria-hidden="true"
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: topic.subject_colour }}
+              />
+              <span className="font-mono text-xs text-ink-faint">{topic.tracking_number}</span>
+              <span className="min-w-0 flex-1 truncate text-ink">{topic.title}</span>
+              {topic.detail && <span className="shrink-0 text-xs text-ink-faint">{topic.detail}</span>}
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${reason.tone}`}>
+                {reason.label}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </Card>
   );

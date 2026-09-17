@@ -51,6 +51,7 @@ export const testPatternSchema = {
         properties: {
           subject: { type: 'string', maxLength: 120 },
           topic: { type: ['string', 'null'], maxLength: 200 },
+          tracking_number: { type: ['string', 'null'], maxLength: 20 },
           issue: { type: 'string', maxLength: 300 },
           recommendation: { type: 'string', maxLength: 300 },
         },

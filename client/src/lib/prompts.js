@@ -53,7 +53,7 @@ ${syllabusText}
  * the review table, so the assistant is not asked to invent structure — only
  * to read what actually happened and say something useful about it.
  */
-export function testPatternPrompt({ test, results }) {
+export function testPatternPrompt({ test, results, topics = [] }) {
   const rows = results
     .map((row, index) => {
       const bits = [
@@ -73,6 +73,10 @@ export function testPatternPrompt({ test, results }) {
       ? `Scored ${test.marks_obtained} out of ${test.total_marks}.`
       : 'No overall score was recorded.';
 
+  const topicBlock = topics
+    .map((topic) => `- ${topic.tracking_number}: ${topic.title} (${topic.subject_name})`)
+    .join('\n');
+
   return `You are helping a school student understand their own test performance — kindly and specifically, not just "study harder."
 
 Test: "${test.test_name}"${test.source ? ` (${test.source})` : ''}${test.test_date ? `, taken ${test.test_date}` : ''}.
@@ -83,11 +87,17 @@ Here is the question-by-question breakdown:
 
 ${rows || '(no per-question breakdown was recorded — work from the overall score and notes above)'}
 
+Here is the student's current topic list, for reference — each has a tracking number:
+
+${topicBlock || '(no topics recorded yet)'}
+
 Look for real patterns, not just a list of wrong answers:
-- Which subjects or topics is the trouble concentrated in?
+- Which subjects or topics is the trouble concentrated in? When a weak area clearly matches one of the topics listed above, include its tracking_number so it can be linked up directly — leave tracking_number out (null) rather than guessing if nothing matches well.
 - Are mistakes more like careless slips (fast, wrong) or real concept gaps (slow, wrong, or not attempted)?
 - Does timing suggest the student was rushed, especially later in the test?
 - What would actually help this coming week — specific and doable, not generic advice.
+
+However you phrase things, be constructive and specific rather than harsh: never describe the student as lazy, careless, or unmotivated as if it were a trait. Every observation should read as a specific, fixable habit — something a 16-year-old could act on without feeling labelled.
 
 Reply with JSON only. No explanation before or after it, and no markdown code fence.
 
