@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { PageHeader } from '../components/AppShell.jsx';
 import { ConfirmDialog } from '../components/ConfirmDialog.jsx';
+import { LLMBridge } from '../components/LLMBridge.jsx';
 import { DragHandle, SortableList, SortableRow } from '../components/SortableList.jsx';
 import { RevisionSuggestion, SessionDialog } from '../components/SessionDialog.jsx';
 import { TopicForm } from '../components/TopicForm.jsx';
@@ -29,6 +30,10 @@ import {
   progressMessage,
 } from '../lib/format.js';
 import { STAGES } from '../lib/practice.js';
+import { topicEnrichmentPrompt } from '../lib/prompts.js';
+import { topicEnrichmentSchema } from '../lib/schemas.js';
+
+const ENRICH_CHUNK_SIZE = 20;
 
 export default function TopicsPage() {
   const { subjectId } = useParams();
@@ -61,6 +66,31 @@ export default function TopicsPage() {
   useEffect(() => {
     if (id) loadMasterList();
   }, [id]);
+
+  // Enrichment works over every topic in the subject, not whatever the
+  // search/filter boxes above happen to be showing right now.
+  const [enrichAllTopics, setEnrichAllTopics] = useState(null);
+  const [enrichChunk, setEnrichChunk] = useState(0);
+  const [enrichBridgeOpen, setEnrichBridgeOpen] = useState(false);
+  const [enrichReview, setEnrichReview] = useState(null); // { items, chunkTopics } or null
+
+  const openEnrichBridge = async () => {
+    const all = await api.topics.list({ subject_id: id });
+    if (all.length === 0) {
+      toast.warn('There are no topics to enrich yet.');
+      return;
+    }
+    setEnrichAllTopics(all);
+    setEnrichChunk(0);
+    // One chunk fits the whole subject — skip straight to the prompt rather
+    // than showing a group picker with nothing to pick between.
+    if (all.length <= ENRICH_CHUNK_SIZE) setEnrichBridgeOpen(true);
+  };
+
+  const enrichChunkCount = enrichAllTopics ? Math.ceil(enrichAllTopics.length / ENRICH_CHUNK_SIZE) : 1;
+  const enrichChunkTopics = enrichAllTopics
+    ? enrichAllTopics.slice(enrichChunk * ENRICH_CHUNK_SIZE, (enrichChunk + 1) * ENRICH_CHUNK_SIZE)
+    : [];
 
   const itemsByTopic = useMemo(() => {
     const map = new Map();
@@ -211,9 +241,69 @@ export default function TopicsPage() {
             <Link to={`/subjects/${id}/import`}>
               <Button variant="primary">Import a syllabus</Button>
             </Link>
+            {subject.topic_count > 0 && <Button onClick={openEnrichBridge}>Enrich with AI</Button>}
           </>
         }
       />
+
+      {enrichAllTopics && enrichChunkCount > 1 && !enrichBridgeOpen && !enrichReview && (
+        <Card className="mb-4 p-4">
+          <p className="text-sm text-ink">
+            {enrichAllTopics.length} topics — enriched in groups of {ENRICH_CHUNK_SIZE} so the prompt stays
+            a manageable size.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {Array.from({ length: enrichChunkCount }, (_, index) => (
+              <Button
+                key={index}
+                size="sm"
+                variant={enrichChunk === index ? 'primary' : 'quiet'}
+                onClick={() => setEnrichChunk(index)}
+              >
+                Topics {index * ENRICH_CHUNK_SIZE + 1}–
+                {Math.min((index + 1) * ENRICH_CHUNK_SIZE, enrichAllTopics.length)}
+              </Button>
+            ))}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button variant="primary" onClick={() => setEnrichBridgeOpen(true)}>
+              Generate the prompt for this group
+            </Button>
+            <Button variant="ghost" onClick={() => setEnrichAllTopics(null)}>
+              Cancel
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      <LLMBridge
+        open={enrichBridgeOpen}
+        onClose={() => setEnrichBridgeOpen(false)}
+        title={`Enrich ${subject.name} topics`}
+        purpose="This app never contacts an AI service — copy the prompt across yourself, then bring the reply back. Nothing changes until you review it below."
+        prompt={enrichAllTopics ? topicEnrichmentPrompt({ subjectName: subject.name, topics: enrichChunkTopics }) : ''}
+        schema={topicEnrichmentSchema}
+        saveLabel="Review these changes"
+        renderPreview={(data) => (
+          <p className="text-sm text-ink-soft">{data.topics.length} topic{data.topics.length === 1 ? '' : 's'} came back.</p>
+        )}
+        onSave={(data) => {
+          setEnrichReview({ items: data.topics, chunkTopics: enrichChunkTopics });
+          setEnrichBridgeOpen(false);
+        }}
+      />
+
+      {enrichReview && (
+        <EnrichmentReview
+          review={enrichReview}
+          onCancel={() => setEnrichReview(null)}
+          onSaved={async () => {
+            setEnrichReview(null);
+            setEnrichAllTopics(null);
+            await reload();
+          }}
+        />
+      )}
 
       {subject.topic_count > 0 && (
         <div className="mb-6">
@@ -747,6 +837,139 @@ function PlanBreakdown({ topics, filtered }) {
             </p>
           </div>
         ))}
+      </div>
+    </Card>
+  );
+}
+
+/** Combines an enrichment reply's write-up into the plain-text shape `topic.key_concepts` already uses. */
+function composeKeyConcepts(item) {
+  const concepts = (item.key_concepts ?? []).map((line) => `- ${line}`).join('\n');
+  return [item.what_to_understand, concepts].filter(Boolean).join('\n\n');
+}
+
+/**
+ * The diff-preview screen for a batch enrichment reply: each item matched
+ * to a real topic by tracking_number, old value next to new, nothing saved
+ * until this is confirmed. Anything that didn't match a topic on this
+ * subject is listed separately and always skipped.
+ */
+function EnrichmentReview({ review, onCancel, onSaved }) {
+  const toast = useToast();
+  const [saving, setSaving] = useState(false);
+
+  const byTrackingNumber = new Map(review.chunkTopics.map((topic) => [topic.tracking_number, topic]));
+  const matched = [];
+  const unmatched = [];
+  for (const item of review.items) {
+    const topic = byTrackingNumber.get(item.tracking_number);
+    if (topic) matched.push({ item, topic });
+    else unmatched.push(item);
+  }
+
+  const [included, setIncluded] = useState(() => new Set(matched.map((row) => row.topic.id)));
+  const toggle = (topicId) =>
+    setIncluded((current) => {
+      const next = new Set(current);
+      if (next.has(topicId)) next.delete(topicId);
+      else next.add(topicId);
+      return next;
+    });
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const toSave = matched.filter((row) => included.has(row.topic.id));
+      for (const { item, topic } of toSave) {
+        await api.topics.update(topic.id, {
+          difficulty: item.difficulty,
+          allocated_duration_minutes: Math.max(5, Math.round((item.estimated_hours * 60) / 5) * 5),
+          key_concepts: composeKeyConcepts(item),
+          resources: item.resources ?? [],
+        });
+      }
+      toast.celebrate(`${toSave.length} topic${toSave.length === 1 ? '' : 's'} updated.`);
+      await onSaved();
+    } catch (caught) {
+      toast.warn(caught.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card className="mb-4 p-4">
+      <h3 className="text-sm font-semibold text-ink">Here's what it came back with — check it over</h3>
+      <p className="mt-1 text-xs text-ink-faint">
+        Nothing is saved yet. Untick anything you don't want to change.
+      </p>
+
+      <div className="mt-3 space-y-2">
+        {matched.map(({ item, topic }) => {
+          const newMinutes = Math.max(5, Math.round((item.estimated_hours * 60) / 5) * 5);
+          const durationChanged = newMinutes !== topic.allocated_duration_minutes;
+          const difficultyChanged = item.difficulty !== topic.difficulty;
+
+          return (
+            <label
+              key={topic.id}
+              className="flex cursor-pointer items-start gap-3 rounded-lg bg-paper-sunk px-3 py-2.5"
+            >
+              <input
+                type="checkbox"
+                checked={included.has(topic.id)}
+                onChange={() => toggle(topic.id)}
+                className="mt-1 h-4 w-4 shrink-0 rounded border-black/20 text-sage-600 focus:ring-sage-400"
+              />
+              <div className="min-w-0 flex-1 text-sm">
+                <p className="text-ink">
+                  <span className="mr-1.5 font-mono text-xs text-ink-faint">{topic.tracking_number}</span>
+                  {topic.title}
+                </p>
+                <p className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-ink-faint">
+                  <span>
+                    Difficulty:{' '}
+                    {difficultyChanged ? (
+                      <>
+                        {topic.difficulty} → <span className="font-medium text-ink">{item.difficulty}</span>
+                      </>
+                    ) : (
+                      item.difficulty
+                    )}
+                  </span>
+                  <span>
+                    Study time:{' '}
+                    {durationChanged ? (
+                      <>
+                        {formatMinutes(topic.allocated_duration_minutes)} →{' '}
+                        <span className="font-medium text-ink">{formatMinutes(newMinutes)}</span>
+                      </>
+                    ) : (
+                      formatMinutes(newMinutes)
+                    )}
+                  </span>
+                  {item.resources?.length > 0 && <span>{item.resources.length} resources</span>}
+                </p>
+                <p className="mt-1 text-xs text-ink-soft">{item.what_to_understand}</p>
+              </div>
+            </label>
+          );
+        })}
+      </div>
+
+      {unmatched.length > 0 && (
+        <p className="mt-3 text-xs text-amber-800">
+          Skipped — no matching topic on this list: {unmatched.map((item) => item.tracking_number).join(', ')}
+        </p>
+      )}
+
+      <div className="mt-3 flex gap-2">
+        <Button variant="primary" onClick={save} disabled={saving || included.size === 0}>
+          {saving ? 'Saving…' : `Save ${included.size} topic${included.size === 1 ? '' : 's'}`}
+        </Button>
+        <Button variant="ghost" onClick={onCancel} disabled={saving}>
+          Cancel
+        </Button>
       </div>
     </Card>
   );

@@ -140,6 +140,20 @@ export function WeeklyPlanView({ payload, onAddPriority, addingKey }) {
       </ul>
 
       <p className="text-ink-soft">{payload.general_advice}</p>
+
+      {payload.behavioural_goals?.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-sage-700">This week's goals</p>
+          <ul className="mt-1 space-y-1">
+            {payload.behavioural_goals.map((goal) => (
+              <li key={goal.goal} className="text-ink-soft">
+                <span className="text-ink">{goal.goal}</span>
+                <span className="text-xs text-ink-faint"> — measured by {goal.how_to_measure}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

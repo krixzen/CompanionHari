@@ -100,6 +100,18 @@ export const weeklyActionPlanSchema = {
       },
     },
     general_advice: { type: 'string', minLength: 10, maxLength: 1000 },
+    behavioural_goals: {
+      type: 'array',
+      maxItems: 2,
+      items: {
+        type: 'object',
+        required: ['goal', 'how_to_measure'],
+        properties: {
+          goal: { type: 'string', maxLength: 200 },
+          how_to_measure: { type: 'string', maxLength: 200 },
+        },
+      },
+    },
   },
 };
 
@@ -199,6 +211,47 @@ export const studyBlockSchema = {
           start_time: { type: 'string', minLength: 4, maxLength: 5 },
           end_time: { type: 'string', minLength: 4, maxLength: 5 },
           note: { type: ['string', 'null'], maxLength: 200 },
+        },
+      },
+    },
+  },
+};
+
+export const topicEnrichmentSchema = {
+  type: 'object',
+  required: ['topics'],
+  properties: {
+    topics: {
+      type: 'array',
+      minItems: 0,
+      maxItems: 20,
+      items: {
+        type: 'object',
+        required: ['tracking_number', 'what_to_understand', 'key_concepts', 'difficulty', 'estimated_hours'],
+        properties: {
+          tracking_number: { type: 'string', maxLength: 20 },
+          what_to_understand: { type: 'string', maxLength: 1500 },
+          key_concepts: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 15,
+            items: { type: 'string', maxLength: 200 },
+          },
+          difficulty: { type: 'integer', minimum: 1, maximum: 5 },
+          estimated_hours: { type: 'number', minimum: 0.25, maximum: 20 },
+          resources: {
+            type: 'array',
+            maxItems: 6,
+            items: {
+              type: 'object',
+              required: ['title'],
+              properties: {
+                title: { type: 'string', maxLength: 200 },
+                type: { type: ['string', 'null'], maxLength: 40 },
+                note: { type: ['string', 'null'], maxLength: 300 },
+              },
+            },
+          },
         },
       },
     },

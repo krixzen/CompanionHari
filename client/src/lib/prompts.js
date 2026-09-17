@@ -3,6 +3,7 @@ import {
   schedulePlanSchema,
   studyBlockSchema,
   testPatternSchema,
+  topicEnrichmentSchema,
   topicListSchema,
   topicNotesSchema,
   weeklyActionPlanSchema,
@@ -110,7 +111,7 @@ ${schemaBlock(testPatternSchema)}`;
  * Builds the prompt for a weekly action plan, using recent test analyses and
  * the current state of the topic list as its raw material.
  */
-export function weeklyActionPlanPrompt({ recentPatterns, topics, progressSummary }) {
+export function weeklyActionPlanPrompt({ recentPatterns, topics, progressSummary, lastWeekGoals }) {
   const patternBlock = recentPatterns.length
     ? recentPatterns
         .map((analysis) => {
@@ -134,6 +135,10 @@ export function weeklyActionPlanPrompt({ recentPatterns, topics, progressSummary
     ? `This week so far: ${progressSummary.week.minutes} minutes across ${progressSummary.week.subjects} subjects, average confidence ${progressSummary.week.confidence ?? 'not rated'}.`
     : '';
 
+  const lastWeekBlock = lastWeekGoals?.length
+    ? lastWeekGoals.map((goal) => `- "${goal.goal}" (measured by: ${goal.how_to_measure})`).join('\n')
+    : null;
+
   return `You are helping a school student plan the coming week of study. Be specific and realistic — a handful of clear priorities, not an overwhelming list.
 
 Recent test analysis:
@@ -143,8 +148,10 @@ ${progressLine}
 
 Topics currently on the list:
 ${topicBlock || '(no topics recorded yet)'}
-
+${lastWeekBlock ? `\nLast week's behavioural goals, for context (comment on these only if genuinely relevant — don't force it):\n${lastWeekBlock}\n` : ''}
 Suggest a short, prioritised plan for this week. For each priority, name an actual topic from the list above (use its tracking number if you can) and say briefly why it matters now. Keep the total realistic for a school student alongside their normal week.
+
+Also suggest 1–2 behavioural goals for the week — not "study more," but something specific and genuinely measurable, so it's obvious next week whether it happened (e.g. "log a confidence rating after every session" measured by "count of sessions with a rating, out of total sessions," not "be more consistent"). If last week's goals are shown above, it's fine to carry one forward if it's still the right thing to work on, or to note if it's now solid and pick a new one — but don't force a callback that doesn't fit.
 
 Reply with JSON only. No explanation before or after it, and no markdown code fence.
 
@@ -357,4 +364,41 @@ Reply with JSON only. No explanation before or after it, and no markdown code fe
 The JSON must match this schema:
 
 ${schemaBlock(studyBlockSchema)}`;
+}
+
+/**
+ * Builds the prompt for batch topic enrichment: for each topic in this
+ * chunk, what to understand, key concepts, a difficulty rating, an
+ * estimated study time, and a few resources to look for. Topics are
+ * referenced by tracking_number so the reply can be matched back to the
+ * right one and reviewed as a diff before anything is changed.
+ */
+export function topicEnrichmentPrompt({ subjectName, topics }) {
+  const topicBlock = topics
+    .map((topic) => {
+      const subTopicLine = topic.sub_topics?.length ? ` — covers: ${topic.sub_topics.join(', ')}` : '';
+      return `- ${topic.tracking_number}: ${topic.title}${subTopicLine}`;
+    })
+    .join('\n');
+
+  return `You are helping enrich a CBSE Class 11 study syllabus for an engineering-entrance aspirant who is also attending Aakash coaching alongside school — so treat each topic at that level, not a general-audience explainer.
+
+Here are the topics in "${subjectName}" to enrich, each with its tracking number:
+
+${topicBlock}
+
+For every topic listed above, return:
+- "what_to_understand": one or two sentences on the core idea the student actually needs to grasp, not a topic restatement.
+- "key_concepts": a short list of the specific concepts, formulas or terms this topic covers.
+- "difficulty": your honest rating from 1 (straightforward) to 5 (demanding), for a student at this level.
+- "estimated_hours": a realistic total study time for this topic, in hours (can be a fraction, e.g. 1.5).
+- "resources" (optional): 2–3 things to search for — since you cannot know which links still resolve, describe each as something to look up (e.g. "Khan Academy: Newton's Laws") rather than a URL.
+
+Include every topic listed above — do not skip any, and do not invent topics that were not listed.
+
+Reply with JSON only. No explanation before or after it, and no markdown code fence.
+
+The JSON must match this schema:
+
+${schemaBlock(topicEnrichmentSchema)}`;
 }
