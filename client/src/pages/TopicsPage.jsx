@@ -242,6 +242,11 @@ export default function TopicsPage() {
               <Button variant="primary">Import a syllabus</Button>
             </Link>
             {subject.topic_count > 0 && <Button onClick={openEnrichBridge}>Enrich with AI</Button>}
+            {subject.topic_count > 0 && (
+              <Link to={`/subjects/${id}/plan`}>
+                <Button>Week-by-week plan</Button>
+              </Link>
+            )}
           </>
         }
       />
