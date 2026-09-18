@@ -60,6 +60,41 @@ const SCHEDULE_HORIZONS = [
 const AUTO_PLAN_CHUNK_DAYS = 13;
 const AUTO_PLAN_MAX_CHUNKS = 12;
 
+/**
+ * Drops individual items that fail an obvious, low-stakes shape check
+ * (missing a field, a duration outside the allowed range) before the reply
+ * goes through full schema validation — one stray bad value shouldn't
+ * throw out an otherwise-good chunk of a run that already cost real API
+ * calls. A dropped item just stays pending, same as if the AI had left it
+ * out entirely; nothing about it is lost.
+ */
+function sanitizeAutoPlanReply(data) {
+  if (!data || typeof data !== 'object') return data;
+
+  const isValidEntry = (entry) =>
+    entry &&
+    typeof entry.item_reference === 'string' &&
+    typeof entry.date === 'string' &&
+    typeof entry.start_time === 'string' &&
+    Number.isInteger(entry.duration_minutes) &&
+    entry.duration_minutes >= 5 &&
+    entry.duration_minutes <= 480;
+
+  const isValidTimeBlock = (block) =>
+    block &&
+    typeof block.date === 'string' &&
+    typeof block.label === 'string' &&
+    typeof block.start_time === 'string' &&
+    typeof block.end_time === 'string';
+
+  return {
+    ...data,
+    entries: Array.isArray(data.entries) ? data.entries.filter(isValidEntry) : data.entries,
+    meals: Array.isArray(data.meals) ? data.meals.filter(isValidTimeBlock) : data.meals,
+    personal_time: Array.isArray(data.personal_time) ? data.personal_time.filter(isValidTimeBlock) : data.personal_time,
+  };
+}
+
 export default function PlannerPage() {
   const today = todayIso();
   const [monday, setMonday] = useState(() => startOfWeek(today));
@@ -387,7 +422,7 @@ export default function PlannerPage() {
         });
 
         const text = await api.ai.complete(prompt, pin);
-        const result = parseAndValidate(text, schedulePlanSchema(from, to));
+        const result = parseAndValidate(text, schedulePlanSchema(from, to), sanitizeAutoPlanReply);
         if (!result.ok) {
           throw new Error(
             `The AI's reply for ${longDate(from)} – ${longDate(to)} could not be used: ${result.errors[0]} Nothing from this run has been saved — try again.`
