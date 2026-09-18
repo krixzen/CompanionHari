@@ -14,7 +14,13 @@ import { getAiApiKey, getAiModel, verifyAiPin } from './settingsService.js';
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
-const MAX_TOKENS = 8000;
+// This model reasons before answering by default, and that reasoning counts
+// against max_tokens the same as the answer itself — a low limit here can
+// let it spend the whole budget "thinking" and stop before writing any of
+// the actual JSON reply. Explicitly turning reasoning off is the direct
+// fix (a scheduling task like this doesn't need it), with a generous
+// max_tokens as a safety net in case that's ever ignored.
+const MAX_TOKENS = 16000;
 
 export async function completeWithAnthropic(prompt, pin) {
   // Checked here, not just in the UI that prompts for it — a request that
@@ -41,6 +47,7 @@ export async function completeWithAnthropic(prompt, pin) {
       body: JSON.stringify({
         model: getAiModel(),
         max_tokens: MAX_TOKENS,
+        thinking: { type: 'disabled' },
         messages: [{ role: 'user', content: prompt }],
       }),
     });
