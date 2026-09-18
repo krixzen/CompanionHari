@@ -8,6 +8,7 @@ import HomePage from './pages/HomePage.jsx';
 import ParentPage from './pages/ParentPage.jsx';
 import PlannerPage from './pages/PlannerPage.jsx';
 import ProgressPage from './pages/ProgressPage.jsx';
+import SubjectPlanPage from './pages/SubjectPlanPage.jsx';
 import SubjectsPage from './pages/SubjectsPage.jsx';
 import TestDetailPage from './pages/TestDetailPage.jsx';
 import TestsPage from './pages/TestsPage.jsx';
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="/parent" element={<ParentPage />} />
             <Route path="/subjects" element={<SubjectsPage />} />
             <Route path="/subjects/:subjectId" element={<TopicsPage />} />
+            <Route path="/subjects/:subjectId/plan" element={<SubjectPlanPage />} />
             <Route path="/subjects/:subjectId/import" element={<ImportPage />} />
             <Route path="/tests" element={<TestsPage />} />
             <Route path="/tests/:testId" element={<TestDetailPage />} />
