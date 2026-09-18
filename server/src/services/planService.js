@@ -349,7 +349,18 @@ export function clearRange(studentId, from, to, { includeCompleted = false } = {
 
   const db = getDb();
   const remove = db.prepare('DELETE FROM plan_entry WHERE id = ?');
-  const run = db.transaction(() => entries.forEach((entry) => remove.run(entry.id)));
+  const run = db.transaction(() => {
+    for (const entry of entries) {
+      remove.run(entry.id);
+      // Same rule as removing a single entry: an unfinished booking taken
+      // off the calendar puts its master-list item back in the backlog,
+      // rather than leaving it stuck "scheduled" with nothing on the
+      // calendar to show for it.
+      if (entry.practice_item_id && !entry.completed) {
+        updatePracticeItem(studentId, entry.practice_item_id, { status: 'pending', minutes_logged: 0 });
+      }
+    }
+  });
   run();
 
   return { removed: entries.length };
