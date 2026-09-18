@@ -136,58 +136,74 @@ export const topicNotesSchema = {
   },
 };
 
-export const schedulePlanSchema = {
-  type: 'object',
-  required: ['entries'],
-  properties: {
-    gap_note: { type: ['string', 'null'], maxLength: 300 },
-    entries: {
-      type: 'array',
-      minItems: 0,
-      maxItems: 200,
-      items: {
-        type: 'object',
-        required: ['item_reference', 'date', 'start_time', 'duration_minutes'],
-        properties: {
-          item_reference: { type: 'string', maxLength: 24 },
-          date: { type: 'string', minLength: 10, maxLength: 10 },
-          start_time: { type: 'string', minLength: 4, maxLength: 5 },
-          duration_minutes: { type: 'integer', minimum: 5, maximum: 480 },
-          note: { type: ['string', 'null'], maxLength: 200 },
+const isoDayCount = (from, to) =>
+  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000) + 1;
+
+/**
+ * meals and personal_time are asked for on every single day of the stretch
+ * (three meals each, plus whatever family/leisure time), so their caps have
+ * to scale with how many days are actually being planned — a fixed cap
+ * sized for a one-week reply silently rejects an honest, correct reply for
+ * a two-week-or-longer one. `from`/`to` are optional so existing callers
+ * that already had a schema in hand keep working against a generous
+ * default; pass the real range to size it exactly.
+ */
+export function schedulePlanSchema(from, to) {
+  const days = from && to ? Math.max(isoDayCount(from, to), 1) : 30;
+
+  return {
+    type: 'object',
+    required: ['entries'],
+    properties: {
+      gap_note: { type: ['string', 'null'], maxLength: 300 },
+      entries: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 200,
+        items: {
+          type: 'object',
+          required: ['item_reference', 'date', 'start_time', 'duration_minutes'],
+          properties: {
+            item_reference: { type: 'string', maxLength: 24 },
+            date: { type: 'string', minLength: 10, maxLength: 10 },
+            start_time: { type: 'string', minLength: 4, maxLength: 5 },
+            duration_minutes: { type: 'integer', minimum: 5, maximum: 480 },
+            note: { type: ['string', 'null'], maxLength: 200 },
+          },
+        },
+      },
+      meals: {
+        type: 'array',
+        maxItems: days * 3 + 5,
+        items: {
+          type: 'object',
+          required: ['date', 'label', 'start_time', 'end_time'],
+          properties: {
+            date: { type: 'string', minLength: 10, maxLength: 10 },
+            label: { type: 'string', maxLength: 40 },
+            start_time: { type: 'string', minLength: 4, maxLength: 5 },
+            end_time: { type: 'string', minLength: 4, maxLength: 5 },
+          },
+        },
+      },
+      personal_time: {
+        type: 'array',
+        maxItems: days * 4 + 5,
+        items: {
+          type: 'object',
+          required: ['date', 'label', 'kind', 'start_time', 'end_time'],
+          properties: {
+            date: { type: 'string', minLength: 10, maxLength: 10 },
+            label: { type: 'string', maxLength: 40 },
+            kind: { type: 'string', enum: ['family', 'leisure'] },
+            start_time: { type: 'string', minLength: 4, maxLength: 5 },
+            end_time: { type: 'string', minLength: 4, maxLength: 5 },
+          },
         },
       },
     },
-    meals: {
-      type: 'array',
-      maxItems: 40,
-      items: {
-        type: 'object',
-        required: ['date', 'label', 'start_time', 'end_time'],
-        properties: {
-          date: { type: 'string', minLength: 10, maxLength: 10 },
-          label: { type: 'string', maxLength: 40 },
-          start_time: { type: 'string', minLength: 4, maxLength: 5 },
-          end_time: { type: 'string', minLength: 4, maxLength: 5 },
-        },
-      },
-    },
-    personal_time: {
-      type: 'array',
-      maxItems: 40,
-      items: {
-        type: 'object',
-        required: ['date', 'label', 'kind', 'start_time', 'end_time'],
-        properties: {
-          date: { type: 'string', minLength: 10, maxLength: 10 },
-          label: { type: 'string', maxLength: 40 },
-          kind: { type: 'string', enum: ['family', 'leisure'] },
-          start_time: { type: 'string', minLength: 4, maxLength: 5 },
-          end_time: { type: 'string', minLength: 4, maxLength: 5 },
-        },
-      },
-    },
-  },
-};
+  };
+}
 
 /**
  * The weekly shape of study time itself — which windows are for studying
