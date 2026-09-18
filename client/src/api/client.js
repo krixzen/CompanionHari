@@ -184,6 +184,13 @@ export const api = {
     term: () => request('/settings/term').then((r) => r.settings),
     saveTerm: (changes) =>
       request('/settings/term', { method: 'PATCH', body: changes }).then((r) => r.settings),
+    ai: () => request('/settings/ai').then((r) => r.settings),
+    saveAi: (changes) => request('/settings/ai', { method: 'PATCH', body: changes }).then((r) => r.settings),
+  },
+
+  ai: {
+    complete: (prompt, pin) =>
+      request('/ai/complete', { method: 'POST', body: { prompt, pin } }).then((r) => r.text),
   },
 
   syllabus: {

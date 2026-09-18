@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { asyncRoute } from '../lib/httpError.js';
 import {
+  getAiSettings,
   getPlannerSettings,
   getTermSettings,
   savePlannerSettings,
+  saveAiSettings,
   saveTermSettings,
 } from '../services/settingsService.js';
 
@@ -28,5 +30,16 @@ settingsRouter.patch(
   '/term',
   asyncRoute((req, res) => {
     res.json({ settings: saveTermSettings(req.body) });
+  })
+);
+
+settingsRouter.get('/ai', (req, res) => {
+  res.json({ settings: getAiSettings() });
+});
+
+settingsRouter.patch(
+  '/ai',
+  asyncRoute((req, res) => {
+    res.json({ settings: saveAiSettings(req.body) });
   })
 );

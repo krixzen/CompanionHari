@@ -11,9 +11,11 @@ import {
 } from '@dnd-kit/core';
 import { api } from '../api/client.js';
 import { PageHeader } from '../components/AppShell.jsx';
+import { AiSettingsDialog } from '../components/AiSettingsDialog.jsx';
 import { ConfirmDialog } from '../components/ConfirmDialog.jsx';
 import { EntryDialog } from '../components/EntryDialog.jsx';
 import { LLMBridge } from '../components/LLMBridge.jsx';
+import { PinPrompt } from '../components/PinPrompt.jsx';
 import { PlannerSettingsDialog } from '../components/PlannerSettingsDialog.jsx';
 import { RevisionSuggestion, SessionDialog } from '../components/SessionDialog.jsx';
 import { ExtrasReview } from '../components/ExtrasReview.jsx';
@@ -21,6 +23,7 @@ import { ScheduleReview } from '../components/ScheduleReview.jsx';
 import { UnscheduledPanel } from '../components/UnscheduledPanel.jsx';
 import { PX_PER_MINUTE, WeekGrid, gridWindow } from '../components/WeekGrid.jsx';
 import { Button, Card, EmptyState, ErrorNote, Select, Spinner } from '../components/ui.jsx';
+import { parseAndValidate } from '../lib/jsonSchema.js';
 import { schedulePlanPrompt } from '../lib/prompts.js';
 import { schedulePlanSchema } from '../lib/schemas.js';
 import { useMediaQuery } from '../hooks/useMediaQuery.js';
@@ -48,6 +51,14 @@ const SCHEDULE_HORIZONS = [
   { key: '2weeks', label: 'Next 2 weeks', days: 13, planLabel: 'Plan the next 2 weeks' },
   { key: '4weeks', label: 'Next 4 weeks', days: 27, planLabel: 'Plan the next 4 weeks' },
 ];
+
+// Automatic AI planning fetches one reply per chunk of the stretch rather
+// than one giant reply, the same size a person would keep a copy-paste
+// bridge to — reliable to get back as valid JSON every time. A cap on the
+// number of chunks keeps one click from silently firing off a huge, costly
+// run if a coverage deadline turns out to be much further out than expected.
+const AUTO_PLAN_CHUNK_DAYS = 13;
+const AUTO_PLAN_MAX_CHUNKS = 12;
 
 export default function PlannerPage() {
   const today = todayIso();
@@ -89,6 +100,22 @@ export default function PlannerPage() {
   const [savingMeals, setSavingMeals] = useState(false);
   const [personalDraft, setPersonalDraft] = useState(null); // family/leisure rows awaiting review, or null when closed
   const [savingPersonal, setSavingPersonal] = useState(false);
+
+  // Automatic AI planning — the same schedulePlanPrompt/schema as the
+  // copy-paste bridge, just fetched directly, chunk by chunk, instead of a
+  // person pasting each reply in by hand.
+  const [aiStatus, setAiStatus] = useState(null);
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  const [autoPlanning, setAutoPlanning] = useState(false);
+  const [autoPlanProgress, setAutoPlanProgress] = useState(null); // { current, total } while a chunk loop runs
+  const [pinPromptOpen, setPinPromptOpen] = useState(false);
+
+  useEffect(() => {
+    api.settings
+      .ai()
+      .then(setAiStatus)
+      .catch(() => setAiStatus({ model: 'claude-sonnet-5', has_key: false }));
+  }, []);
 
   // Which stretch "Ask Claude or ChatGPT to plan it" should cover — the
   // visible week by default, or further out when replanning a bigger chunk
@@ -287,6 +314,133 @@ export default function PlannerPage() {
     } finally {
       setPlanning(false);
     }
+  };
+
+  /**
+   * Same prompt, same schema, same review screen as the copy-paste bridge —
+   * just fetched directly rather than pasted in by hand, and split into
+   * chunks small enough to reliably come back as valid JSON. Each chunk's
+   * proposed blocks are folded into the next chunk's busy time and taken out
+   * of its pending list, so a later chunk doesn't double-book a stage an
+   * earlier one already placed — none of it is saved to the calendar until
+   * the whole run is reviewed at the end, exactly like the manual bridge.
+   */
+  const runAutoPlan = async (pin) => {
+    setAutoPlanning(true);
+    setReport(null);
+    setAutoPlanProgress(null);
+
+    const chunks = [];
+    let cursor = monday;
+    while (cursor <= scheduleTo) {
+      const rawEnd = addDays(cursor, AUTO_PLAN_CHUNK_DAYS);
+      const chunkTo = rawEnd > scheduleTo ? scheduleTo : rawEnd;
+      chunks.push({ from: cursor, to: chunkTo });
+      cursor = addDays(chunkTo, 1);
+    }
+
+    if (chunks.length > AUTO_PLAN_MAX_CHUNKS) {
+      toast.warn(
+        `That stretch would take ${chunks.length} separate AI requests — more than the safety cap of ${AUTO_PLAN_MAX_CHUNKS}. Pick a nearer coverage deadline, or use a shorter horizon.`
+      );
+      setAutoPlanning(false);
+      return;
+    }
+
+    const allEntries = [];
+    const allMeals = [];
+    const allPersonalTime = [];
+    const consumedRefs = new Set();
+    const syntheticEntries = [];
+
+    try {
+      for (let index = 0; index < chunks.length; index += 1) {
+        setAutoPlanProgress({ current: index + 1, total: chunks.length });
+        const { from, to } = chunks[index];
+
+        const [rangedAnchors, rangedEntries] = await Promise.all([
+          api.anchors.effective(from, to),
+          api.plan.list(from, to),
+        ]);
+
+        const remainingPendingItems = pendingItems.filter(
+          (item) => !consumedRefs.has(`${item.tracking_number}/S${item.stage}`)
+        );
+        const chunkExisting = [
+          ...rangedEntries,
+          ...syntheticEntries.filter((entry) => entry.scheduled_date >= from && entry.scheduled_date <= to),
+        ];
+
+        const prompt = schedulePlanPrompt({
+          from,
+          to,
+          anchors: rangedAnchors,
+          pendingItems: remainingPendingItems,
+          existingEntries: chunkExisting,
+          settings,
+          examDate: term?.exam_date,
+          coverByDate: term?.cover_by_date,
+          studyBlocks,
+          gapSummary,
+        });
+
+        const text = await api.ai.complete(prompt, pin);
+        const result = parseAndValidate(text, schedulePlanSchema);
+        if (!result.ok) {
+          throw new Error(
+            `The AI's reply for ${longDate(from)} – ${longDate(to)} could not be used: ${result.errors[0]} Nothing from this run has been saved — try again.`
+          );
+        }
+
+        for (const entry of result.data.entries ?? []) {
+          allEntries.push(entry);
+          consumedRefs.add(entry.item_reference);
+          const startMinutes = toMinutes(entry.start_time);
+          syntheticEntries.push({
+            scheduled_date: entry.date,
+            scheduled_start_time: entry.start_time,
+            scheduled_end_time:
+              startMinutes === null ? entry.start_time : toTime(startMinutes + entry.duration_minutes),
+            tracking_number: entry.item_reference,
+            tracking_label: entry.item_reference,
+            topic_title: '',
+          });
+        }
+        allMeals.push(...(result.data.meals ?? []));
+        allPersonalTime.push(...(result.data.personal_time ?? []));
+      }
+
+      setScheduleDraft(resolveScheduleDraft({ entries: allEntries }));
+      setMealDraft(resolveMealDraft({ meals: allMeals }));
+      setPersonalDraft(resolvePersonalDraft({ personal_time: allPersonalTime }));
+      toast.celebrate(
+        `AI drafted ${allEntries.length} block${allEntries.length === 1 ? '' : 's'} across ${
+          chunks.length
+        } request${chunks.length === 1 ? '' : 's'} — review below before saving.`
+      );
+    } catch (caught) {
+      toast.warn(caught.message);
+    } finally {
+      setAutoPlanning(false);
+      setAutoPlanProgress(null);
+    }
+  };
+
+  const startAutoPlan = () => {
+    if (!aiStatus?.has_key) {
+      setAiSettingsOpen(true);
+      return;
+    }
+    if (aiStatus?.has_pin) {
+      setPinPromptOpen(true);
+      return;
+    }
+    runAutoPlan(undefined);
+  };
+
+  const confirmAutoPlanPin = (pin) => {
+    setPinPromptOpen(false);
+    runAutoPlan(pin);
   };
 
   /**
@@ -550,6 +704,20 @@ export default function PlannerPage() {
             <Button onClick={() => setScheduleBridgeOpen(true)} disabled={loadingScheduleContext}>
               {loadingScheduleContext ? 'Preparing…' : 'Ask Claude or ChatGPT to plan it'}
             </Button>
+            <Button onClick={startAutoPlan} disabled={autoPlanning}>
+              {autoPlanning
+                ? autoPlanProgress
+                  ? `Planning request ${autoPlanProgress.current} of ${autoPlanProgress.total}…`
+                  : 'Planning…'
+                : aiStatus?.has_key
+                  ? 'Plan automatically with AI'
+                  : 'Set up automatic AI planning'}
+            </Button>
+            {aiStatus?.has_key && (
+              <Button size="sm" variant="ghost" onClick={() => setAiSettingsOpen(true)}>
+                AI planning settings
+              </Button>
+            )}
             <Button variant="primary" onClick={planWeek} disabled={planning}>
               {planning
                 ? 'Planning…'
@@ -841,6 +1009,18 @@ export default function PlannerPage() {
           toast.celebrate('Saved. Plan the week again to use the new settings.');
         }}
       />
+
+      <AiSettingsDialog
+        open={aiSettingsOpen}
+        onClose={() => setAiSettingsOpen(false)}
+        status={aiStatus}
+        onSave={async (changes) => {
+          setAiStatus(await api.settings.saveAi(changes));
+          toast.celebrate('Saved.');
+        }}
+      />
+
+      <PinPrompt open={pinPromptOpen} onClose={() => setPinPromptOpen(false)} onConfirm={confirmAutoPlanPin} />
 
       <LLMBridge
         open={scheduleBridgeOpen}
