@@ -139,8 +139,14 @@ function check(value, schema, path, errors) {
 /**
  * Parses pasted text and checks it against a schema.
  * Returns { ok, data, errors } — errors are complete sentences, ready to show.
+ *
+ * `sanitize`, when given, runs on the parsed JSON before validation — for a
+ * caller where one malformed item in an otherwise-good list (a stray
+ * duration of 0, say) shouldn't fail the whole reply, it can drop just
+ * that item rather than the caller having to discard everything and ask
+ * again. Every other caller leaves this out and behaves exactly as before.
  */
-export function parseAndValidate(rawText, schema) {
+export function parseAndValidate(rawText, schema, sanitize) {
   const text = stripCodeFences(rawText);
 
   if (!text) {
@@ -163,6 +169,16 @@ export function parseAndValidate(rawText, schema) {
         'Copy the whole reply again — it usually means a bracket or a comma is missing, or part of the answer was cut off.',
       ],
     };
+  }
+
+  if (typeof sanitize === 'function') {
+    try {
+      data = sanitize(data);
+    } catch {
+      // A sanitizer that itself chokes on the shape just means the reply is
+      // genuinely too malformed to help with — fall through to the normal
+      // check below, which will report that properly.
+    }
   }
 
   const errors = [];
