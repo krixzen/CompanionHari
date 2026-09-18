@@ -385,7 +385,7 @@ export default function PlannerPage() {
         });
 
         const text = await api.ai.complete(prompt, pin);
-        const result = parseAndValidate(text, schedulePlanSchema);
+        const result = parseAndValidate(text, schedulePlanSchema(from, to));
         if (!result.ok) {
           throw new Error(
             `The AI's reply for ${longDate(from)} – ${longDate(to)} could not be used: ${result.errors[0]} Nothing from this run has been saved — try again.`
@@ -1039,7 +1039,7 @@ export default function PlannerPage() {
           studyBlocks,
           gapSummary,
         })}
-        schema={schedulePlanSchema}
+        schema={schedulePlanSchema(scheduleContext.from, scheduleContext.to)}
         saveLabel="Review this schedule"
         renderPreview={(data) => {
           const extras = (data.meals?.length ?? 0) + (data.personal_time?.length ?? 0);

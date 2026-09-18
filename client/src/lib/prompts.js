@@ -311,7 +311,7 @@ Reply with JSON only. No explanation before or after it, and no markdown code fe
 
 The JSON must match this schema:
 
-${schemaBlock(schedulePlanSchema)}`;
+${schemaBlock(schedulePlanSchema(from, to))}`;
 }
 
 const DAY_LABELS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
