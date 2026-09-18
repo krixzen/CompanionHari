@@ -108,6 +108,7 @@ export default function PlannerPage() {
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [autoPlanning, setAutoPlanning] = useState(false);
   const [autoPlanProgress, setAutoPlanProgress] = useState(null); // { current, total } while a chunk loop runs
+  const [autoPlanError, setAutoPlanError] = useState(null); // sticks around on the page — a toast is easy to miss on a run this long
   const [pinPromptOpen, setPinPromptOpen] = useState(false);
 
   useEffect(() => {
@@ -329,6 +330,7 @@ export default function PlannerPage() {
     setAutoPlanning(true);
     setReport(null);
     setAutoPlanProgress(null);
+    setAutoPlanError(null);
 
     const chunks = [];
     let cursor = monday;
@@ -340,9 +342,9 @@ export default function PlannerPage() {
     }
 
     if (chunks.length > AUTO_PLAN_MAX_CHUNKS) {
-      toast.warn(
-        `That stretch would take ${chunks.length} separate AI requests — more than the safety cap of ${AUTO_PLAN_MAX_CHUNKS}. Pick a nearer coverage deadline, or use a shorter horizon.`
-      );
+      const message = `That stretch would take ${chunks.length} separate AI requests — more than the safety cap of ${AUTO_PLAN_MAX_CHUNKS}. Pick a nearer coverage deadline, or use a shorter horizon.`;
+      toast.warn(message);
+      setAutoPlanError(message);
       setAutoPlanning(false);
       return;
     }
@@ -420,6 +422,7 @@ export default function PlannerPage() {
       );
     } catch (caught) {
       toast.warn(caught.message);
+      setAutoPlanError(caught.message);
     } finally {
       setAutoPlanning(false);
       setAutoPlanProgress(null);
@@ -900,6 +903,18 @@ export default function PlannerPage() {
           )}
         </DragOverlay>
       </DndContext>
+
+      {autoPlanError && (
+        <Card className="mt-4 border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-sm font-semibold text-amber-900">Automatic AI planning didn't finish</h2>
+            <Button size="sm" variant="ghost" onClick={() => setAutoPlanError(null)}>
+              Dismiss
+            </Button>
+          </div>
+          <p className="mt-1 text-sm text-amber-900">{autoPlanError}</p>
+        </Card>
+      )}
 
       {report?.skipped?.length > 0 && (
         <Card className="mt-4 p-4">
