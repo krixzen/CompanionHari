@@ -494,9 +494,12 @@ export default function PlannerPage() {
     toast.celebrate(`${entry.tracking_number} taken off the calendar.`);
   };
 
+  // Clearing follows whatever stretch the plan buttons are currently set to
+  // reach — a lingering week-long crammed plan clears with one click, and so
+  // does a whole term's worth booked in by "Until my coverage deadline."
   const clearWeek = async () => {
     try {
-      const { removed } = await api.plan.clear(monday, addDays(monday, 6));
+      const { removed } = await api.plan.clear(monday, scheduleTo);
       setClearOpen(false);
       await refresh();
       toast.celebrate(
@@ -624,7 +627,7 @@ export default function PlannerPage() {
           </div>
         )}
         <Button size="sm" variant="ghost" onClick={() => setClearOpen(true)} className="ml-auto">
-          Clear unfinished
+          {scheduleHorizon === 'week' ? 'Clear unfinished' : `Clear unfinished to ${longDate(scheduleTo)}`}
         </Button>
       </div>
 
@@ -881,11 +884,11 @@ export default function PlannerPage() {
         open={clearOpen}
         onClose={() => setClearOpen(false)}
         onConfirm={clearWeek}
-        title="Clear this week?"
+        title={scheduleHorizon === 'week' ? 'Clear this week?' : `Clear ${longDate(monday)} – ${longDate(scheduleTo)}?`}
         confirmLabel="Clear unfinished blocks"
       >
-        Everything not yet ticked off is taken off this week. Blocks you have already done stay
-        where they are.
+        Everything not yet ticked off between {longDate(monday)} and {longDate(scheduleTo)} is taken off
+        the calendar. Blocks you have already done stay where they are.
       </ConfirmDialog>
     </div>
   );
