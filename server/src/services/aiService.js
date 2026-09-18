@@ -52,6 +52,9 @@ export async function completeWithAnthropic(prompt, pin) {
 
   if (!response.ok) {
     const message = payload?.error?.message || `The AI service returned an error (${response.status}).`;
+    // The UI's own toast for this is easy to miss on a run that takes a
+    // minute — this line in the terminal is always there to check back on.
+    console.error(`AI service request failed (${response.status}): ${message}`);
     throw badRequest(
       response.status === 401
         ? 'The AI service rejected that API key — check it was pasted in full under Planner settings.'
@@ -60,7 +63,10 @@ export async function completeWithAnthropic(prompt, pin) {
   }
 
   const text = payload?.content?.find((block) => block.type === 'text')?.text;
-  if (!text) throw badRequest('The AI service replied without any usable text — try again.');
+  if (!text) {
+    console.error('AI service replied with no usable text. Full response:', JSON.stringify(payload));
+    throw badRequest('The AI service replied without any usable text — try again.');
+  }
 
   return text;
 }
