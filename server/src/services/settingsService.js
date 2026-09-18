@@ -1,9 +1,11 @@
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { getDb } from '../db/index.js';
 import { badRequest } from '../lib/httpError.js';
 import { isIsoDate, startOfWeek, toMinutes, todayIso } from '../lib/time.js';
 
 const PLANNER_KEY = 'planner';
 const TERM_KEY = 'term';
+const AI_KEY = 'ai';
 
 /**
  * How the automatic planner behaves. The defaults describe an ordinary school
@@ -147,4 +149,91 @@ export function saveTermSettings(changes) {
     .run(TERM_KEY, JSON.stringify(next));
 
   return next;
+}
+
+const AI_DEFAULTS = { model: 'claude-sonnet-5', api_key: null, pin_hash: null, pin_salt: null };
+
+function readAiRecord() {
+  const row = getDb().prepare('SELECT value FROM setting WHERE key = ?').get(AI_KEY);
+  if (!row) return { ...AI_DEFAULTS };
+  try {
+    return { ...AI_DEFAULTS, ...JSON.parse(row.value) };
+  } catch {
+    return { ...AI_DEFAULTS };
+  }
+}
+
+function hashPin(pin, salt) {
+  return scryptSync(pin, salt, 32).toString('hex');
+}
+
+/**
+ * The API key and the PIN's own hash are never handed back to the client
+ * once saved — only whether each is set. The key only ever leaves this
+ * machine in the one request that actually calls the AI service.
+ */
+export function getAiSettings() {
+  const record = readAiRecord();
+  return { model: record.model, has_key: Boolean(record.api_key), has_pin: Boolean(record.pin_hash) };
+}
+
+export function getAiApiKey() {
+  return readAiRecord().api_key;
+}
+
+export function getAiModel() {
+  return readAiRecord().model;
+}
+
+/**
+ * A PIN is optional — most households running this locally have no reason
+ * for one. When it is set, it exists to stop the student from firing off
+ * paid API calls on their own; it is checked here, server-side, on every
+ * automatic-planning request, not just prompted for in the UI, so it can't
+ * be skipped by calling the endpoint directly.
+ */
+export function verifyAiPin(pin) {
+  const record = readAiRecord();
+  if (!record.pin_hash) return true;
+  if (!pin) return false;
+  const candidate = Buffer.from(hashPin(String(pin), record.pin_salt), 'hex');
+  const expected = Buffer.from(record.pin_hash, 'hex');
+  return candidate.length === expected.length && timingSafeEqual(candidate, expected);
+}
+
+export function saveAiSettings(changes) {
+  const next = readAiRecord();
+
+  if (changes.api_key !== undefined) {
+    const trimmed = String(changes.api_key ?? '').trim();
+    next.api_key = trimmed || null;
+  }
+
+  if (changes.model !== undefined) {
+    const trimmed = String(changes.model ?? '').trim();
+    if (!trimmed) throw badRequest('Pick a model name.');
+    next.model = trimmed;
+  }
+
+  if (changes.pin !== undefined) {
+    const trimmed = String(changes.pin ?? '').trim();
+    if (!trimmed) {
+      next.pin_hash = null;
+      next.pin_salt = null;
+    } else {
+      if (!/^\d{4,8}$/.test(trimmed)) throw badRequest('The PIN should be 4 to 8 digits.');
+      const salt = randomBytes(16).toString('hex');
+      next.pin_hash = hashPin(trimmed, salt);
+      next.pin_salt = salt;
+    }
+  }
+
+  getDb()
+    .prepare(
+      `INSERT INTO setting (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+    )
+    .run(AI_KEY, JSON.stringify(next));
+
+  return { model: next.model, has_key: Boolean(next.api_key), has_pin: Boolean(next.pin_hash) };
 }

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { aiRouter } from './ai.js';
 import { analysisRouter } from './analysis.js';
 import { anchorsRouter } from './anchors.js';
 import { errorNotesRouter } from './errorNotes.js';
@@ -35,6 +36,7 @@ export function createApiRouter() {
   router.use('/progress', progressRouter);
   router.use('/tests', testsRouter);
   router.use('/analysis', analysisRouter);
+  router.use('/ai', aiRouter);
 
   return router;
 }
